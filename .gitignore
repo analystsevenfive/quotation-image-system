@@ -1,0 +1,33 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Output generated PDFs & temporary test preview images
+QT_test_with_images.pdf
+sample_quotation_output.pdf
+QT_test_output_page*.png
+check_uploaded_page*.png
+sample_quotation_output_page*.png
+
+# Temporary images
+img_ber1.jpg
+img_cshl.jpg
+img_cw76.png
+
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+
+# IDEs & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
