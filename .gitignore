@@ -31,3 +31,12 @@ img_cw76.png
 .idea/
 .DS_Store
 Thumbs.db
+
+node_modules/
+.next/
+*.tsbuildinfo
+.data/
+tmp/
+output/
+test-results/
+playwright-report/

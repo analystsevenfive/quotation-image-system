@@ -10,6 +10,8 @@ sys.path.insert(0, str(Path(__file__).parent / "apps" / "api"))
 from app.core.template import SEVEN_FIVE_TEMPLATE
 from app.models.quotation import BoundingBox, QuotationItem
 from app.services.images.downloader import ImageDownloader
+from app.services.catalog import Catalog, read_excel
+from app.models.quotation import MatchStatus
 from app.services.pdf.parser import QuotationPDFParser
 from app.services.pdf.renderer import QuotationPDFRenderer
 
@@ -20,22 +22,8 @@ print(f"   Found {len(items)} items across pages.")
 
 print("\n2. Loading 'web sevenfive 75.xlsx'...")
 t0 = time.time()
-wb = openpyxl.load_workbook("web sevenfive 75.xlsx", data_only=True, read_only=True)
-ws = wb.active
-
-catalog = []
-for row in ws.iter_rows(min_row=2, values_only=True):
-    d_val = row[3]  # Column D: GoodBillName
-    f_val = row[5]  # Column F: link image
-    if d_val:
-        catalog.append({
-            "good_id": str(row[0] or ""),
-            "sku": str(row[1] or ""),
-            "winspeed": str(row[2] or ""),
-            "good_bill_name": str(d_val).strip(),
-            "image_url": str(f_val).strip() if f_val else None,
-        })
-print(f"   Loaded {len(catalog)} rows in {time.time() - t0:.2f}s.")
+catalog = Catalog(read_excel("web sevenfive 75.xlsx"))
+print(f"   Loaded {len(catalog.products)} products in {time.time() - t0:.2f}s.")
 
 print("\n3. Matching items against Column D and fetching Shopify images from Column F...")
 downloader = ImageDownloader(timeout=15.0)
@@ -48,27 +36,21 @@ for item in items:
         print(f"   Item #{item.item_number:2d}: (Delivery terms - skipped)")
         continue
 
-    # Match in catalog
-    matched = []
-    pattern = r"(?:\b|_)" + re.escape(sku) + r"(?:\b|_)"
-    for entry in catalog:
-        if re.search(pattern, entry["good_bill_name"], re.IGNORECASE):
-            matched.append(entry)
-
-    if not matched:
-        print(f"   Item #{item.item_number:2d}: SKU='{sku}' NOT FOUND")
+    result = catalog.matcher.match(item.detected_sku, item.detected_model)
+    item.match_status = result.status
+    item.match_method = result.method
+    item.matched_product = result.product
+    item.candidate_products = result.candidates
+    if result.status != MatchStatus.MATCHED:
+        print(f"   Item #{item.item_number}: {result.status.value} ({len(result.candidates)} candidates)")
         continue
-
-    # Pick match with image if possible
-    with_img = [e for e in matched if e["image_url"]]
-    chosen = with_img[0] if with_img else matched[0]
-    img_url = chosen["image_url"]
+    img_url = result.product.image_url
 
     if img_url:
         print(f"   Item #{item.item_number:2d}: SKU='{sku:12s}' -> Downloading image: {img_url[:60]}...")
         img_bytes = downloader.get_image(img_url)
         if img_bytes:
-            image_data_map[item.item_number] = img_bytes
+            image_data_map[(item.page_number, item.item_number)] = img_bytes
             item.selected_image_url = img_url
             print(f"           [OK] Image downloaded ({len(img_bytes)} bytes)")
         else:

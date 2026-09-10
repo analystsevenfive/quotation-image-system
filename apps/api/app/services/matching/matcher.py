@@ -40,8 +40,10 @@ class ProductMatcher:
     Rule: Never auto-accept ambiguous matches.
     """
 
-    def __init__(self, products: List[Product]):
+    def __init__(self, products: List[Product], mapping_store=None):
         self.products = products
+        self.mapping_store = mapping_store
+        self._by_id = {p.id: p for p in products}
         self._exact_sku_index: Dict[str, List[Product]] = defaultdict(list)
         self._exact_winspeed_index: Dict[str, List[Product]] = defaultdict(list)
         self._normalized_sku_index: Dict[str, List[Product]] = defaultdict(list)
@@ -73,13 +75,30 @@ class ProductMatcher:
         detected_model: Optional[str] = None,
     ) -> MatchResult:
         """
-        Attempts to match the detected string using the 5-tier priority hierarchy.
+        Attempts to match the detected string using the priority hierarchy:
+        0. Saved Manual Mapping
+        1. Exact SKU
+        2. Exact winspeed
+        3. Normalized SKU
+        4. Model
+        5. Manual review (needs_review or missing)
         """
         if not detected_value and not detected_model:
             return MatchResult(status=MatchStatus.MISSING, confidence=0.0)
 
         raw_val = (detected_value or "").strip()
         norm_val = normalize_sku(raw_val)
+
+        # 0. Saved Manual Mapping (Priority 0)
+        if self.mapping_store:
+            mapped_id = self.mapping_store.get(raw_val) or (self.mapping_store.get(norm_val) if norm_val else None)
+            if mapped_id is not None and mapped_id in self._by_id:
+                return MatchResult(
+                    status=MatchStatus.MATCHED,
+                    method=MatchMethod.MANUAL,
+                    confidence=1.0,
+                    product=self._by_id[mapped_id],
+                )
 
         # 1. Exact SKU
         if raw_val and raw_val in self._exact_sku_index:

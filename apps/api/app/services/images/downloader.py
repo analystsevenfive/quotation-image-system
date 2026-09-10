@@ -60,6 +60,9 @@ class ImageDownloader:
         try:
             image_bytes = self._fetch_bytes(url_or_path)
             self._validate_image(image_bytes)
+            # Bound the temporary image cache in a long-running web process.
+            if sum(map(len, self._cache.values())) + len(image_bytes) > 64 * 1024 * 1024:
+                self._cache.clear()
             self._cache[url_or_path] = image_bytes
             return image_bytes
         except Exception as e:
@@ -88,21 +91,21 @@ class ImageDownloader:
         }
 
         transport = httpx.HTTPTransport(retries=self.max_retries)
-        with httpx.Client(timeout=self.timeout, transport=transport, follow_redirects=True) as client:
-            resp = client.get(url_or_path, headers=headers)
-            if resp.status_code != 200:
-                raise ImageDownloadError(f"HTTP GET returned status {resp.status_code}")
-
-            # Check content length header if present
-            content_length = resp.headers.get("content-length")
-            if content_length and int(content_length) > self.max_bytes:
-                raise ImageDownloadError(f"Image exceeds max byte limit ({content_length} > {self.max_bytes})")
-
-            data = resp.content
-            if len(data) > self.max_bytes:
-                raise ImageDownloadError(f"Image payload exceeds max byte limit: {len(data)} bytes")
-
-            return data
+        with httpx.Client(timeout=self.timeout, transport=transport, follow_redirects=False) as client:
+            with client.stream('GET', url_or_path, headers=headers) as resp:
+                if resp.status_code != 200:
+                    raise ImageDownloadError(f"HTTP GET returned status {resp.status_code}")
+                if resp.headers.get('content-type', '').split(';')[0].strip().lower() not in SUPPORTED_CONTENT_TYPES:
+                    raise ImageDownloadError('Unsupported image Content-Type')
+                content_length = resp.headers.get('content-length')
+                if content_length and int(content_length) > self.max_bytes:
+                    raise ImageDownloadError('Image exceeds max byte limit')
+                data = bytearray()
+                for chunk in resp.iter_bytes(65536):
+                    data.extend(chunk)
+                    if len(data) > self.max_bytes:
+                        raise ImageDownloadError('Image exceeds max byte limit')
+                return bytes(data)
 
     def _validate_image(self, data: bytes) -> Tuple[int, int, str]:
         """

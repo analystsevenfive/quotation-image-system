@@ -54,6 +54,7 @@ class QuotationTemplate(BaseModel):
     image_slot_center_x: float = 350.0
     image_min_slot_height: float = 0.0  # 0.0 for strict row bounds; >0 for expansion in sparse columns
     image_right_margin: float = 11.0  # clearance before qty_col_x0 (413.0 - 11.0 = 402.0)
+    image_text_reserve_width: float = 200.0
     image_top_margin: float = 3.0
     image_bottom_margin: float = 3.0
     min_row_height_for_image: float = 20.0
@@ -79,7 +80,7 @@ SEVEN_FIVE_TEMPLATE = QuotationTemplate(
     image_max_width=110.0,
     image_max_height=100.0,
     image_slot_center_x=350.0,
-    image_min_slot_height=95.0,
+    image_min_slot_height=0.0,
     image_right_margin=11.0,
     image_top_margin=3.0,
     image_bottom_margin=3.0,

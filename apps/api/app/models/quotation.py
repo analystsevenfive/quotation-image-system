@@ -49,6 +49,7 @@ class QuotationItem(BaseModel):
     detected_model: Optional[str] = None
     bbox: BoundingBox
     image_bbox: Optional[BoundingBox] = None
+    manual_image_bbox: Optional[BoundingBox] = None
 
     # Matching state
     matched_product: Optional[Product] = None

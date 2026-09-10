@@ -7,7 +7,8 @@ import fitz  # PyMuPDF
 
 from app.core.template import DEFAULT_TEMPLATE, QuotationTemplate
 from app.models.quotation import BoundingBox, QuotationItem
-from app.services.pdf.fitter import calculate_image_placement, get_image_dimensions
+from app.services.pdf.fitter import calculate_safe_placement, get_image_dimensions
+from app.services.pdf.placement import validate_placement
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,9 @@ class QuotationPDFRenderer:
 
         try:
             for item in items:
-                img_bytes = image_data_map.get(item.item_number)
+                item.image_inserted = False
+                item.image_bbox = None
+                img_bytes = image_data_map.get((item.page_number, item.item_number), image_data_map.get(item.item_number))
                 if not img_bytes:
                     continue
 
@@ -57,10 +60,11 @@ class QuotationPDFRenderer:
 
                 try:
                     img_w, img_h = get_image_dimensions(img_bytes)
-                    img_bbox = calculate_image_placement(
+                    img_bbox = item.manual_image_bbox or calculate_safe_placement(
                         item_bbox=item.bbox,
                         image_width=img_w,
                         image_height=img_h,
+                        words=page.get_text('words'),
                         template=self.template,
                     )
 
@@ -68,8 +72,15 @@ class QuotationPDFRenderer:
                         item.error_message = "Insufficient row height or space for image"
                         continue
 
+                    if item.manual_image_bbox:
+                        validate_placement(img_bbox, item, page, (img_w, img_h), self.template)
+
                     # Target rectangle in PDF points
                     rect = fitz.Rect(img_bbox.x0, img_bbox.y0, img_bbox.x1, img_bbox.y1)
+
+                    if any(rect.intersects(fitz.Rect(word[:4])) for word in page.get_text("words")):
+                        item.error_message = "Image area overlaps document text; image skipped"
+                        continue
 
                     # Insert image natively into PDF stream
                     # keep_proportion=True ensures no stretching

@@ -1,0 +1,32 @@
+import {test, expect} from '@playwright/test';
+import path from 'node:path';
+
+test('real quotation upload, review, manual selection, generate and download', async ({page})=> {
+  const errors: string[]=[];
+  page.on('pageerror', e=>errors.push(e.message));
+  await page.goto('/');
+  await expect(page.getByRole('heading', {name:'เติมรูปสินค้าให้ใบเสนอราคา'})).toBeVisible();
+  await page.screenshot({path:'../../tmp/web-upload.png', fullPage:true, animations:'disabled'});
+  await page.locator('input[accept="application/pdf,.pdf"]').setInputFiles(path.resolve('../../QT_test.pdf'));
+  await expect(page.getByRole('heading', {name:'QT_test.pdf'})).toBeVisible({timeout:30000});
+  await expect(page.locator('.react-pdf__Page canvas')).toBeVisible({timeout:30000});
+  await page.getByRole('button', {name:'เปลี่ยนสินค้า / รูป'}).first().click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('dialog').getByRole('button').filter({hasText:'CSHL550'}).first().click();
+  await expect(page.getByRole('dialog')).not.toBeVisible();
+  await expect(page.getByText('เลือกแล้ว', {exact:true})).toBeVisible();
+  await page.getByRole('button', {name:'สร้าง PDF โดยข้ามรูปที่ยังไม่มี'}).click();
+  await expect(page.getByText('PDF พร้อมดาวน์โหลด', {exact:true})).toBeVisible({timeout:90000});
+  await expect(page.locator('.react-pdf__Page canvas')).toBeVisible();
+  await expect(page.getByTestId('pdf-preview')).toHaveAttribute('data-rendered','true');
+  await page.screenshot({path:'../../tmp/web-review.png', fullPage:true, animations:'disabled'});
+  const downloadEvent = page.waitForEvent('download');
+  await page.getByRole('link', {name:'ดาวน์โหลด PDF'}).click();
+  const download = await downloadEvent;
+  await download.saveAs('../../tmp/browser-quotation.pdf');
+  expect(await download.failure()).toBeNull();
+  await page.setViewportSize({width:390,height:844});
+  await page.screenshot({path:'../../tmp/web-mobile.png',fullPage:true});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBeTruthy();
+  expect(errors).toEqual([]);
+});

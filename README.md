@@ -2,6 +2,18 @@
 
 Automated insertion of product images into quotation PDFs using PyMuPDF.
 
+## Phase 2 — Web application
+
+The local Next.js + FastAPI app now supports upload, PDF.js preview, product
+review/manual selection, direct image drag/resize, file upload, clipboard-image
+paste, generation and download. See [development instructions](docs/development.md)
+for Windows startup, PostgreSQL import and verification. Start both servers, then
+open http://127.0.0.1:3000.
+
+The app currently uses temporary local sessions. PostgreSQL import/adapter code is
+included; a live database connection, authentication and Supabase PDF storage are
+not configured yet.
+
 > 📌 **คู่มือสถานะโครงการและการย้ายไปทำต่อใน Environment ใหม่:** ดูได้ที่ [PROGRESS.md](PROGRESS.md)
 
 ## Phase 1 — PDF Engine Proof of Concept

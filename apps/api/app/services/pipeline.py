@@ -72,7 +72,7 @@ class QuotationPipeline:
                     # 3. Retrieve image
                     img_bytes = self.downloader.get_image(match_res.product.image_url)
                     if img_bytes:
-                        image_data_map[item.item_number] = img_bytes
+                        image_data_map[(item.page_number, item.item_number)] = img_bytes
                     else:
                         item.error_message = "Failed to download or validate image from URL"
                 else:
