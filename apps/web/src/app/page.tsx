@@ -1,6 +1,6 @@
 'use client';
 import dynamic from 'next/dynamic';
-import {useEffect, useRef, useState} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 import {ArrowRight, Check, CheckCircle2, Download, FileText, ImagePlus, Loader2, Search, UploadCloud, X, RotateCcw, Crop, Trash2, BookmarkCheck} from 'lucide-react';
 import {Button} from '@/components/ui/button';
 import {api, type Product, type Item, type Quotation, type Rect} from '@/lib/api';
@@ -31,8 +31,23 @@ export default function Home() {
   const [mappingsOpen,setMappingsOpen] = useState(false);
   const [gesturing,setGesturing] = useState(false);
   const [backendStatus, setBackendStatus] = useState<'checking'|'ready'|'error'>('checking');
+  const [highlightId, setHighlightId] = useState<number|null>(null);
   const mutationGate = useRef(false);
   const input = useRef<HTMLInputElement>(null);
+  const itemRefs = useRef<Record<number, HTMLElement|null>>({});
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const scrollToFirstMissing = useCallback(() => {
+    if (!quotation) return;
+    const first = quotation.items.find(i => !i.has_image);
+    if (!first) return;
+    const el = itemRefs.current[first.id];
+    if (el) {
+      el.scrollIntoView({behavior: 'smooth', block: 'center'});
+      setHighlightId(first.id);
+      setTimeout(() => setHighlightId(null), 1800);
+    }
+  }, [quotation]);
 
   useEffect(() => {
     let active = true;
@@ -252,7 +267,23 @@ export default function Home() {
         </div><div className="mt-7 grid gap-4 text-left text-sm text-stone-500 sm:grid-cols-3">{['รักษาความคมชัดต้นฉบับ','ตรวจและเปลี่ยนสินค้าได้','สร้างต่อได้แม้รูปไม่ครบ'].map(t=><div key={t} className="flex items-center gap-2"><Check size={16} className="text-teal-700"/>{t}</div>)}</div>
       </section>:<section className="enter">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-5"><div><p className="mb-2 text-xs font-semibold tracking-widest text-teal-700">{quotation.generated?'DOCUMENT READY':'REVIEW YOUR QUOTATION'}</p><h1 className="max-w-2xl break-all text-2xl font-semibold">{quotation.filename}</h1><p className="mt-2 text-sm text-stone-500">ตรวจสอบสินค้าและรูปภาพก่อนดาวน์โหลดเอกสาร</p></div><Button variant="outline" disabled={!!busy||gesturing} onClick={()=>{setQuotation(null);setSelectedIds([]);setError('')}}><RotateCcw size={16}/>เริ่มเอกสารใหม่</Button></div>
-        <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">{[[quotation.items.length,'รายการทั้งหมด'],[matched,'จับคู่สินค้าแล้ว'],[review,'รอตรวจสอบ'],[missing,'ยังไม่มีรูปที่เลือก']].map(([n,l])=><div key={l} className="rounded-2xl border border-stone-200 bg-white px-5 py-4"><span className="text-2xl font-semibold">{n}</span><span className="ml-3 text-xs text-stone-500">{l}</span></div>)}</div>
+        <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {([[quotation.items.length,'รายการทั้งหมด'],[matched,'จับคู่สินค้าแล้ว'],[review,'รอตรวจสอบ']] as [number,string][]).map(([n,l])=><div key={l} className="rounded-2xl border border-stone-200 bg-white px-5 py-4"><span className="text-2xl font-semibold">{n}</span><span className="ml-3 text-xs text-stone-500">{l}</span></div>)}
+          {missing > 0 ? (
+            <button
+              key="missing"
+              onClick={scrollToFirstMissing}
+              className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-left transition-colors hover:border-amber-400 hover:bg-amber-100 group"
+              title="คลิกเพื่อไปยังรายการแรกที่ยังไม่มีรูป"
+            >
+              <span className="text-2xl font-semibold text-amber-700">{missing}</span>
+              <span className="ml-3 text-xs text-amber-700">ยังไม่มีรูปที่เลือก</span>
+              <span className="ml-1 text-xs text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity">↓</span>
+            </button>
+          ) : (
+            <div key="missing" className="rounded-2xl border border-stone-200 bg-white px-5 py-4"><span className="text-2xl font-semibold text-teal-700">{missing}</span><span className="ml-3 text-xs text-stone-500">ยังไม่มีรูปที่เลือก</span></div>
+          )}
+        </div>
         {quotation.generated&&<div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-teal-200 bg-teal-50 p-5"><div className="flex items-center gap-3"><CheckCircle2 className="text-teal-700"/><div><p className="font-semibold text-teal-900">PDF พร้อมดาวน์โหลด</p><p className="mt-1 text-sm text-teal-800">เพิ่มรูปแล้ว {quotation.images_inserted} จาก {quotation.items.length} รายการ{quotation.images_inserted<quotation.items.length?' · รายการที่เหลือคงเอกสารเดิมไว้':''}</p></div></div><Button asChild><a href={`/api/quotations/${quotation.id}/download`}><Download size={17}/>ดาวน์โหลด PDF</a></Button></div>}
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(330px,1fr)]">
           <PdfPreview key={quotation.id} quotation={quotation} page={page} onPage={changePage} selected={activeItem} selectedIds={selectedIds} onSelect={activate} onToggleSelect={toggleSelect} onClearSelect={clearSelect} disabled={!!busy} onSave={savePlacement} onUpload={uploadImage} cropTarget={cropTarget} onCropTargetHandled={()=>setCropTarget(null)} onGesture={setGesturing} canUndo={!!quotation.can_undo} canRedo={!!quotation.can_redo} onUndo={()=>void undo()} onRedo={()=>void redo()} onDelete={deleteImages}/>
@@ -310,8 +341,8 @@ export default function Home() {
                 </div>
               )}
             </div>
-            <div className="max-h-[58vh] divide-y divide-stone-100 overflow-auto">
-              {quotation.items.map(item=><article key={item.id} className={`p-5 ${item.id===activeItem || selectedIds.includes(item.id)?'bg-teal-50/60':''}`}>
+            <div ref={listRef} className="max-h-[58vh] divide-y divide-stone-100 overflow-auto">
+              {quotation.items.map(item=><article key={item.id} ref={el => { itemRefs.current[item.id] = el; }} className={`p-5 transition-colors duration-300 ${highlightId === item.id ? 'bg-amber-100 ring-2 ring-amber-400 ring-inset' : item.id===activeItem || selectedIds.includes(item.id)?'bg-teal-50/60':''}`}>
                 <div className="flex gap-3">
                   <div className="flex flex-col items-center gap-2 pt-0.5">
                     <input
