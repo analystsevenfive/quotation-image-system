@@ -39,6 +39,9 @@ class Quotation:
     # Computed once on first editor_view() call and reused thereafter.
     _pages_meta_cache: object = field(default=None, repr=False)
 
+    # Cache for PIL image dimensions per item index: {index: (width, height)}.
+    # Cleared when images change (replace, delete, undo, redo).
+    _image_dims_cache: dict = field(default_factory=dict, repr=False)
 
 def snapshot_state(quotation):
     return {
@@ -153,6 +156,7 @@ class QuotationService:
             prev = quotation.undo_stack.pop()
             quotation.items = prev['items']
             quotation.images = prev['images']
+            quotation._image_dims_cache.clear()  # images changed - dims stale
             quotation.uploaded = prev['uploaded']
             quotation.output = None
             quotation.revision += 1
@@ -170,6 +174,7 @@ class QuotationService:
             quotation.items = next_state['items']
             quotation.images = next_state['images']
             quotation.uploaded = next_state['uploaded']
+            quotation._image_dims_cache.clear()  # images changed - dims stale
             quotation.output = None
             quotation.revision += 1
             prepare_images(self, quotation)

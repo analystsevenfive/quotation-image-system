@@ -4,6 +4,10 @@ from PIL import Image, ImageOps
 
 MAX_IMAGE_UPLOAD = 10 * 1024 * 1024
 MAX_IMAGE_PIXELS = 20_000_000
+# Max side length for stored images.  Quotation cell thumbnails never need more
+# than this — resizing a 4000px photo to 1200px cuts PNG storage ~10× while
+# preserving all quality visible in a PDF at A4 scale.
+_MAX_SIDE = 1200
 
 
 def normalize_uploaded_image(data: bytes) -> bytes:
@@ -18,6 +22,10 @@ def normalize_uploaded_image(data: bytes) -> bytes:
             image.load()
             oriented = ImageOps.exif_transpose(image)
             pixels = oriented.convert('RGBA' if 'A' in oriented.getbands() or 'transparency' in oriented.info else 'RGB')
+            # Downscale large images before encoding — thumbnails in a quotation
+            # PDF cell are tiny, so anything beyond _MAX_SIDE is wasted bytes.
+            if max(pixels.width, pixels.height) > _MAX_SIDE:
+                pixels.thumbnail((_MAX_SIDE, _MAX_SIDE), Image.LANCZOS)
             # Create a clean image: no filename, EXIF, comments or other metadata.
             clean = Image.frombytes(pixels.mode, pixels.size, pixels.tobytes())
             output = io.BytesIO()
