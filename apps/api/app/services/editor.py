@@ -2,6 +2,7 @@
 import logging
 import math
 import threading
+from urllib.parse import urlparse
 from app.services.pdf.visible_text import visible_words
 import fitz
 from app.services.pdf.fitter import calculate_safe_placement, get_image_dimensions
@@ -121,6 +122,32 @@ def prepare_images(service, quotation, indices=None):
         with fitz.open(stream=quotation.source, filetype="pdf") as doc:
             for pnum in pages_needed:
                 page_words[pnum] = visible_words(doc[pnum - 1])
+
+    # Batch prefetch missing images concurrently if multiple items need them
+    missing_items = [
+        (i, quotation.items[i].matched_product.image_url)
+        for i in targets
+        if 0 <= i < len(quotation.items)
+        and quotation.images.get(i) is None
+        and quotation.items[i].matched_product
+        and quotation.items[i].matched_product.image_url
+    ]
+    if len(missing_items) > 1 and hasattr(service, "downloader") and hasattr(service.downloader, "get_images_batch"):
+        valid_pairs = []
+        for idx, url in missing_items:
+            try:
+                p = urlparse(url)
+                if p.scheme == "https" and p.hostname == "cdn.shopify.com" and p.port in (None, 443) and not p.username:
+                    valid_pairs.append((idx, url))
+            except Exception:
+                pass
+        if valid_pairs:
+            fetched = service.downloader.get_images_batch([u for _, u in valid_pairs])
+            for idx, url in valid_pairs:
+                img_data = fetched.get(url)
+                if img_data:
+                    quotation.images[idx] = img_data
+                    quotation._image_dims_cache.pop(idx, None)
 
     # Process items — no PDF open required beyond this point.
     for index in targets:
