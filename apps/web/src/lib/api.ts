@@ -19,7 +19,15 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api${path}`, {...init, cache:'no-store'});
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new Error(typeof body.detail === 'string' ? body.detail : 'ทำรายการไม่สำเร็จ กรุณาลองใหม่');
+    let message = 'ทำรายการไม่สำเร็จ กรุณาลองใหม่';
+    if (typeof body.detail === 'string') {
+      message = body.detail;
+    } else if (response.status === 502 || response.status === 504) {
+      message = `ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ Backend ได้ (${response.status}) อาจเกิดจาก Render กำลังเริ่มทำงาน (Cold Start) หรือยังไม่ได้ตั้งค่า API_URL บน Vercel`;
+    } else if (response.status === 403) {
+      message = 'ถูกปฏิเสธการเชื่อมต่อ (403 Forbidden) จากการตั้งค่าสิทธิ์หรือ CORS';
+    }
+    throw new Error(message);
   }
   return response.json();
 }

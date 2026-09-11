@@ -53,6 +53,22 @@ def create_app(service=None):
 
     @app.middleware('http')
     async def private_session(request: Request, call_next):
+        origin = request.headers.get('origin')
+        allowed_origins_env = os.environ.get('ALLOWED_ORIGINS')
+        default_origins = {'http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:8000', 'http://127.0.0.1:8000'}
+        if allowed_origins_env and allowed_origins_env != '*':
+            default_origins.update(o.strip() for o in allowed_origins_env.split(',') if o.strip())
+        is_allowed_origin = (allowed_origins_env == '*') or (origin in default_origins)
+
+        if request.method == 'OPTIONS':
+            res = Response(status_code=204)
+            if origin and is_allowed_origin:
+                res.headers['Access-Control-Allow-Origin'] = origin
+                res.headers['Access-Control-Allow-Credentials'] = 'true'
+                res.headers['Access-Control-Allow-Headers'] = '*'
+                res.headers['Access-Control-Allow-Methods'] = '*'
+            return res
+
         image_upload = request.url.path.startswith('/api/quotations/') and request.url.path.endswith('/image')
         if request.method == 'POST' and (request.url.path == '/api/quotations' or image_upload):
             try:
@@ -62,16 +78,12 @@ def create_app(service=None):
             limit = MAX_IMAGE_UPLOAD if image_upload else MAX_UPLOAD
             if length > limit + 65536:
                 return JSONResponse({'detail': 'รูปต้องมีขนาดไม่เกิน 10 MB' if image_upload else 'PDF must be 20 MB or smaller'}, status_code=413)
-        origin = request.headers.get('origin')
-        allowed_origins_env = os.environ.get('ALLOWED_ORIGINS')
-        if allowed_origins_env != '*':
-            default_origins = {'http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:8000', 'http://127.0.0.1:8000'}
-            if allowed_origins_env:
-                default_origins.update(o.strip() for o in allowed_origins_env.split(',') if o.strip())
-            if origin and origin not in default_origins:
-                return JSONResponse({'detail': 'Origin not allowed'}, status_code=403)
-        if request.headers.get('sec-fetch-site') == 'cross-site':
+
+        if origin and not is_allowed_origin:
+            return JSONResponse({'detail': 'Origin not allowed'}, status_code=403)
+        if request.headers.get('sec-fetch-site') == 'cross-site' and not origin and not is_allowed_origin:
             return JSONResponse({'detail': 'Cross-site access not allowed'}, status_code=403)
+
         owner = request.cookies.get('quotation_session')
         if not owner or len(owner) != 64:
             owner = secrets.token_hex(32)
@@ -79,7 +91,20 @@ def create_app(service=None):
         response = await call_next(request)
         response.headers['Cache-Control'] = 'no-store'
         response.headers['X-Content-Type-Options'] = 'nosniff'
-        response.set_cookie('quotation_session', owner, httponly=True, samesite='strict', max_age=86400)
+        if origin and is_allowed_origin:
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            response.headers['Access-Control-Allow-Headers'] = '*'
+            response.headers['Access-Control-Allow-Methods'] = '*'
+        is_https = request.url.scheme == 'https' or request.headers.get('x-forwarded-proto') == 'https'
+        response.set_cookie(
+            'quotation_session',
+            owner,
+            httponly=True,
+            samesite='none' if is_https else 'lax',
+            secure=is_https,
+            max_age=86400
+        )
         return response
 
     @app.exception_handler(Exception)

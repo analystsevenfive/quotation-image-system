@@ -30,8 +30,22 @@ export default function Home() {
   const [selectedIds,setSelectedIds] = useState<number[]>([]);
   const [mappingsOpen,setMappingsOpen] = useState(false);
   const [gesturing,setGesturing] = useState(false);
+  const [backendStatus, setBackendStatus] = useState<'checking'|'ready'|'error'>('checking');
   const mutationGate = useRef(false);
   const input = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/health')
+      .then(res => {
+        if (!active) return;
+        setBackendStatus(res.ok ? 'ready' : 'error');
+      })
+      .catch(() => {
+        if (active) setBackendStatus('error');
+      });
+    return () => { active = false; };
+  }, []);
   useEffect(()=> { if (!editing) return; const abort = new AbortController(); setSearching(true); const timer=setTimeout(()=> {
     api<Product[]>(`/products/search?q=${encodeURIComponent(query)}`, {signal:abort.signal}).then(setResults).catch(e=>{if(e.name!=='AbortError')setError(e.message)}).finally(()=>{if(!abort.signal.aborted)setSearching(false)});
   },250); return ()=>{clearTimeout(timer);abort.abort()}; },[query,editing]);
@@ -206,9 +220,24 @@ export default function Home() {
             <BookmarkCheck size={15} />
             คู่สินค้าที่จำไว้
           </Button>
-          <span className="hidden sm:inline-block rounded-full bg-teal-50 px-3 py-1.5 text-xs font-medium text-teal-800">
-            ระบบพร้อมใช้งาน (Production Ready)
-          </span>
+          {backendStatus === 'ready' && (
+            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-teal-50 px-3 py-1.5 text-xs font-medium text-teal-800">
+              <span className="h-1.5 w-1.5 rounded-full bg-teal-600 animate-pulse" />
+              ระบบพร้อมใช้งาน (Production Ready)
+            </span>
+          )}
+          {backendStatus === 'checking' && (
+            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800" title="กำลังเชื่อมต่อหรือปลุกเซิร์ฟเวอร์ Backend (Render Free Tier)">
+              <Loader2 size={12} className="animate-spin" />
+              กำลังเชื่อมต่อเซิร์ฟเวอร์…
+            </span>
+          )}
+          {backendStatus === 'error' && (
+            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700" title="ไม่สามารถเชื่อมต่อ Backend ได้ โปรดตรวจสอบ API_URL บน Vercel">
+              <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+              เชื่อมต่อ Backend ไม่สำเร็จ
+            </span>
+          )}
         </div>
       </div>
     </header>
