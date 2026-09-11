@@ -31,6 +31,13 @@ class Quotation:
     lock: object = field(default_factory=threading.RLock)
     undo_stack: list = field(default_factory=list)
     redo_stack: list = field(default_factory=list)
+    # Derived caches — never persisted, never snapshotted for undo/redo.
+    # visible_words() results per page (keyed by 1-based page number).
+    # The PDF source is immutable per session so these never go stale.
+    _page_words_cache: dict = field(default_factory=dict, repr=False)
+    # Serialised pages metadata sent to the frontend (width/height/text).
+    # Computed once on first editor_view() call and reused thereafter.
+    _pages_meta_cache: object = field(default=None, repr=False)
 
 
 def snapshot_state(quotation):
@@ -191,7 +198,7 @@ class QuotationService:
             if sku_key and self.mapping_store:
                 self.mapping_store.set(sku_key, product_id)
 
-            prepare_images(self, quotation)
+            prepare_images(self, quotation, [index])
             if self.history_store:
                 self.history_store.save_quotation(quotation)
 
