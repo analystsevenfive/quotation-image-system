@@ -83,7 +83,8 @@ class QuotationService:
                     raise ValueError('PDF must contain at most 100 pages')
                 if any(page.rotation for page in document):
                     raise ValueError('กรุณาใช้ PDF แนวตั้งต้นฉบับที่ไม่มีการหมุนหน้า เพื่อให้ตำแหน่งรูปตรงกับเอกสาร')
-            items = self.parser.parse(source)
+            page_words = {}
+            items = self.parser.parse(source, page_words_cache=page_words)
         except ValueError:
             raise
         except Exception:
@@ -96,7 +97,14 @@ class QuotationService:
             item.matched_product, item.candidate_products = match.product, match.candidates
             item.match_confidence = match.confidence
             item.selected_image_url = match.product.image_url if match.product else None
-        quotation = Quotation(secrets.token_hex(16), owner, Path(filename.replace('\\', '/')).name, source, items)
+        quotation = Quotation(
+            secrets.token_hex(16),
+            owner,
+            Path(filename.replace('\\', '/')).name,
+            source,
+            items,
+            _page_words_cache=page_words,
+        )
         prepare_images(self, quotation)
         with self.lock:
             self.quotations = {k: q for k, q in self.quotations.items() if time.time() - q.created < 86400}

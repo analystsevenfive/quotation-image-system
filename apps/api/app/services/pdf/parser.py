@@ -33,9 +33,14 @@ class QuotationPDFParser:
     def __init__(self, template: QuotationTemplate = DEFAULT_TEMPLATE):
         self.template = template
 
-    def parse(self, pdf_source: Union[str, Path, bytes, fitz.Document]) -> List[QuotationItem]:
+    def parse(
+        self,
+        pdf_source: Union[str, Path, bytes, fitz.Document],
+        page_words_cache: Optional[dict] = None,
+    ) -> List[QuotationItem]:
         """
         Parses a PDF file path or bytes and returns detected QuotationItems.
+        Optionally populates page_words_cache with {page_number: words} to avoid re-parsing.
         """
         if isinstance(pdf_source, (str, Path, bytes)):
             if isinstance(pdf_source, bytes):
@@ -53,6 +58,8 @@ class QuotationPDFParser:
                 page = doc[page_index]
                 words = visible_words(page)  # list of (x0, y0, x1, y1, word, block_no, line_no, word_no)
                 total_words_count += len(words)
+                if page_words_cache is not None:
+                    page_words_cache[page_index + 1] = words
 
                 page_items = self._parse_page(page, page_index + 1, words)
                 all_items.extend(page_items)
