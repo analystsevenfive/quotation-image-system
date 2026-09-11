@@ -1,167 +1,165 @@
 # AGENTS.md
 
 ## Project
-Quotation Image Automation System
+**Quotation Image Automation System**  
+Automated extraction and insertion of product images into quotation PDFs using PyMuPDF and Next.js.
+
+## Current Project Status
+- **Phase 1 (PDF Engine & Matching)**: ✅ Complete. Tested with 40,194 catalog products.
+- **Phase 2 (Quotation Web Studio & Editor)**: ✅ Complete. Drag/resize, Canva-style crop, undo/redo (Ctrl+Z/Y), paste image (Ctrl+V), single & batch delete.
+- **Phase 3 (Product Mapping Persistence)**: ✅ Complete. Remembers user-selected SKU mappings cross-document with "Saved Mappings" dialog.
+- **Cloud Deployment**: ✅ Complete.
+  - Web: `https://quotation-image-system.vercel.app` (Vercel)
+  - API: `https://quotation-api-h4ta.onrender.com` (Render)
+- **Phase 4 (History & Supabase Auth & Storage)**: ⏳ Deferred per instruction until initial production usage is established.
+
+---
 
 ## Required Reading
 Before making architectural changes or implementing major features, read:
 - `docs/quotation-image-system.md`
+- `docs/development.md`
+- `PROGRESS.md`
 
-## Core Stack
-- Frontend: Next.js + TypeScript + Tailwind CSS + shadcn/ui
-- PDF Preview: PDF.js or react-pdf
-- Backend: Python + FastAPI
-- PDF Engine: PyMuPDF (`fitz`)
-- HTTP Client: httpx
-- Database: PostgreSQL / Supabase
-- Auth: Supabase Auth + Google OAuth
-- PDF Storage: Supabase Storage
-- Product Images: existing Shopify CDN URLs from `products.image_url`
+---
 
-## Architecture
-Preferred initial architecture:
+## Core Stack & Architecture
 
 ```text
-Next.js
+Next.js (Vercel)
+   ↓ (Reverse Proxy /api/*)
+FastAPI (Render)
    ↓
-FastAPI
+PyMuPDF (`fitz`) Engine + Pillow
    ↓
-PyMuPDF
+PostgreSQL / Supabase (Catalog & Saved Mappings)
    ↓
-PostgreSQL / Supabase
-   ↓
-Shopify CDN
+Shopify CDN (Product Images)
 ```
 
-Do not add Kubernetes, microservices, Redis, or Celery unless there is a proven need.
+- **Frontend**: Next.js 16 (App Router, Turbopack, TypeScript, Tailwind CSS, Lucide icons, PDF.js preview)
+- **Backend API**: Python 3.10+ (FastAPI, Uvicorn, PyMuPDF, Pillow, HTTPX)
+- **Database / Platform**: Supabase / PostgreSQL (40k+ products, migrations in `apps/api/migrations/001_products.sql`)
+- **Image Source**: Shopify CDN URLs (`cdn.shopify.com`)
 
-## Highest Priority
-Build and validate the PDF engine first:
+*Architecture Directive: Keep it simple. Do not add Kubernetes, microservices, Redis, Celery, or heavy message queues unless there is a proven bottleneck.*
+
+---
+
+## Repository Structure Map
 
 ```text
-Upload PDF
-→ Extract ITEM + SKU/model + coordinates
-→ Match Product Master
-→ Retrieve image_url
-→ Insert image into correct item area
-→ Export PDF
+quotation-image-system-starter/
+├── AGENTS.md                  # Instructions for AI coding agents (this file)
+├── PROGRESS.md                # Progress tracker and environment migration guide
+├── README.md                  # Quickstart documentation
+├── render.yaml                # Infrastructure configuration for Render backend
+├── requirements.txt           # Top-level Python requirements (points to apps/api)
+├── start-production.bat       # Windows one-click local production launcher
+├── start-production.ps1       # PowerShell local production launcher with IP display
+├── test_render_upload.py      # Cloud deployment E2E upload verification script
+│
+├── apps/
+│   ├── api/                   # Backend FastAPI Application
+│   │   ├── requirements.txt   # Backend dependencies
+│   │   ├── migrations/        # SQL migration files for PostgreSQL/Supabase
+│   │   ├── app/
+│   │   │   ├── main.py        # FastAPI factory, CORS, session & error middleware
+│   │   │   ├── import_catalog.py # Catalog importer (Excel/JSON/PostgreSQL)
+│   │   │   ├── core/          # Template definitions & config
+│   │   │   ├── models/        # Pydantic data models
+│   │   │   └── services/      # Core business logic:
+│   │   │       ├── pdf/       # PyMuPDF boundary detection, text collision & renderer
+│   │   │       ├── matching/  # 5-tier catalog matcher & saved mappings store
+│   │   │       ├── images/    # Shopify CDN downloader & upload handler
+│   │   │       ├── editor.py  # Image placement & Canva-style crop calculations
+│   │   │       └── history.py # Undo / Redo state management
+│   │   └── tests/             # 47 unit & integration tests (100% passing)
+│   │
+│   └── web/                   # Frontend Next.js Application
+│       ├── package.json       # Web dependencies & scripts
+│       ├── next.config.ts     # Turbopack config & /api/* proxy rewrite rules
+│       ├── src/
+│       │   ├── app/           # Next.js App Router (layout, globals.css, page.tsx)
+│       │   ├── components/    # UI components (pdf-preview.tsx, mappings-dialog.tsx)
+│       │   └── lib/           # Client API client (api.ts) & placement math
+│       └── tests/             # 8 Playwright E2E test suites (100% passing)
+│
+├── .data/
+│   └── products.json          # Local JSON snapshot of 40,194 catalog products
+└── docs/
+    ├── development.md         # Detailed local development & database guide
+    └── quotation-image-system.md # Original business and functional specifications
 ```
 
-Do not build authentication, history, admin settings, or advanced batch processing before this works reliably with real quotation PDFs.
+---
 
-## PDF Rules
-- Use PyMuPDF for selectable-text PDFs.
-- Do not use OCR by default.
-- Do not rasterize the whole PDF.
-- Preserve original PDF text/vector quality.
-- Never hardcode fixed Y positions for item rows.
-- Detect the real vertical range of each quotation item.
-- Keep product images inside the DESCRIPTION column.
-- Never overlap QTY, PRICE, or NET PRICE.
-- Preserve image aspect ratio.
-- Scale images down when item height is small.
-- Keep layout rules configurable for future quotation templates.
+## Quickstart & Verification Commands
 
-## Matching Rules
-Priority:
-1. Exact SKU
-2. Exact winspeed
-3. Normalized SKU
-4. Model
-5. Manual review
-
-Statuses:
-```text
-matched
-needs_review
-missing
-manual
+### 1. Run Backend Unit Tests (47 tests)
+```bash
+python -m unittest discover -s apps/api/tests -p "test_*.py"
 ```
 
-Match methods:
-```text
-exact_sku
-winspeed
-normalized_sku
-model
-manual
+### 2. Run Next.js Build
+```bash
+cd apps/web
+npm run build
+cd ../..
 ```
 
-Never auto-accept ambiguous matches.
-
-## Product Master
-Existing spreadsheet columns:
-```text
-good_id
-sku
-winspeed
-product_url
-link_image
+### 3. Run End-to-End Tests (Playwright)
+```bash
+cd apps/web
+# Ensure backend (port 8000) and frontend (port 3000) are running
+npx playwright test
+cd ../..
 ```
 
-Target database fields:
-```text
-id
-good_id
-sku
-winspeed
-model
-product_url
-image_url
-image_status
-created_at
-updated_at
+### 4. Test Cloud Deployment Upload
+```bash
+python test_render_upload.py
 ```
 
-Google Sheets can remain a source of truth, but quotation processing should query PostgreSQL instead of reading the sheet for every request.
+### 5. Local Development Startup
+* **Backend:**
+  ```powershell
+  $env:PYTHONPATH = "apps/api"
+  python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+  ```
+* **Frontend:**
+  ```powershell
+  cd apps/web
+  npm run dev
+  ```
 
-## UX Rules
-Normal user flow:
-```text
-Upload PDF
-→ Auto Process
-→ Review
-→ Generate PDF
-→ Download
-```
+---
 
-Review page:
-```text
-Left:  PDF Preview
-Right: Product Match List
-```
+## Strict Rules & Invariants for Agents
 
-Do not expose PDF coordinates or technical matching internals to normal staff.
-Missing images must not block PDF generation.
+### PDF Processing
+- **Use PyMuPDF (`fitz`) only**: Do not introduce OCR by default. OCR is reserved as a future fallback for scanned non-selectable PDFs only.
+- **Never rasterize the PDF**: Preserve 100% of original vector text and quality.
+- **Never hardcode Y coordinates**: Item heights vary. Always detect vertical boundaries dynamically using `apps/api/app/services/pdf/boundary.py`.
+- **Strict Column Boundaries**: Images must reside strictly inside the `DESCRIPTION` column. Never overlap `QTY`, `PRICE`, or `NET PRICE`.
+- **Preserve Aspect Ratio**: Images must never be stretched or distorted. Use `fitter.py` to calculate safe aspect-ratio bounds and avoid text collisions.
 
-## Security
-- Treat quotation PDFs as private company documents.
-- Validate file type and size.
-- Use safe/randomized storage keys.
-- Never expose Supabase service-role keys to frontend code.
-- Never show raw Python stack traces to users.
+### Catalog Matching
+Hierarchy must strictly follow:
+1. Exact SKU (`confidence = 1.0`)
+2. Exact Winspeed (`confidence = 0.95`)
+3. Normalized SKU (`confidence = 0.90`)
+4. Model Match (`confidence = 0.80`, or `needs_review` if multiple candidates)
+5. Missing / Manual Review (`confidence = 0.0`)
+*Never auto-accept ambiguous matches.*
 
-## Code Quality
-- Keep PDF parsing, matching, image retrieval, and PDF rendering in separate modules.
-- Keep business logic separate from API/controller code.
-- Add unit tests for:
-  - SKU normalization
-  - SKU/model matching
-  - Item boundary detection
-  - Image fitting calculations
+### Architecture & Security
+- **Quotation Privacy**: Quotation PDFs are private company documents. Sessions are identified by cryptographically random 64-character tokens.
+- **Cookie Security**: Set `HttpOnly=True`, `SameSite=None` on HTTPS (or `Lax` on HTTP), and `Secure=True` on HTTPS.
+- **Cross-Origin & CORS**: Requests routed via Next.js `/api/*` rewrites avoid third-party cookie blocking. Allowed origins must be handled safely via `ALLOWED_ORIGINS`.
+- **Zero Raw Stack Traces**: Never return internal server errors or Python stack traces directly to the client.
 
-## OCR / AI Policy
-Do not introduce OCR or AI for deterministic tasks PyMuPDF can solve.
-OCR may be added later only as an isolated fallback for image-only PDFs.
-
-## Development Workflow
-Before implementing a major phase:
-1. Read the specification.
-2. Explain the implementation plan.
-3. List assumptions and risks.
-4. Define affected files/modules.
-5. Implement incrementally.
-6. Add tests.
-7. Validate with real quotation samples.
-
-Do not silently guess PDF layout behavior. Make uncertain rules configurable.
+### Separation of Concerns
+- Keep PDF coordinate math, boundary detection, image retrieval, and matching in distinct modules under `apps/api/app/services/`.
+- Do not place heavy business logic directly inside FastAPI route handlers (`main.py`).
+- Maintain existing tests whenever modifying services.

@@ -1,63 +1,67 @@
 # Quotation Image Automation System
 
-Automated insertion of product images into quotation PDFs using PyMuPDF.
-
-## Phase 2 — Web application
-
-The local Next.js + FastAPI app now supports upload, PDF.js preview, product
-review/manual selection, direct image drag/resize, file upload, clipboard-image
-paste, generation and download. See [development instructions](docs/development.md)
-for Windows startup, PostgreSQL import and verification. Start both servers, then
-open http://127.0.0.1:3000.
-
-The app currently uses temporary local sessions. PostgreSQL import/adapter code is
-included; a live database connection, authentication and Supabase PDF storage are
-not configured yet.
-
-> 📌 **คู่มือสถานะโครงการและการย้ายไปทำต่อใน Environment ใหม่:** ดูได้ที่ [PROGRESS.md](PROGRESS.md)
-
-## Phase 1 — PDF Engine Proof of Concept
-
-Phase 1 provides the core PDF engine, matching system, boundary detector, and image renderer without requiring databases or external microservices.
-
-### Features
-- **PyMuPDF Selectable-Text Extraction**: Native coordinate and text extraction without slow or unreliable OCR.
-- **Dynamic Item Row Boundaries**: Dynamically detects the vertical span `[y0, y1]` of each quotation item based on sequential row markers and footer boundaries.
-- **5-Tier Product Matching**: Strict matching priority hierarchy:
-  1. Exact SKU (`confidence = 1.0`)
-  2. Exact Winspeed (`confidence = 0.95`)
-  3. Normalized SKU (`confidence = 0.90`)
-  4. Model Match (`confidence = 0.80`, or `needs_review` if multiple candidates exist)
-  5. Missing / Manual Review (`confidence = 0.0`)
-- **Aspect-Ratio Preserving Image Insertion**: Fits images inside the `DESCRIPTION` column with zero stretching and strict column clearance preventing overlap with `QTY`, `PRICE`, or `NET PRICE`.
-- **Fault-Tolerant HTTP Retrieval**: Missing images or network timeouts log warnings and mark items as `missing` without failing quotation generation.
+Automated insertion of product images into quotation PDFs using PyMuPDF and Next.js.
 
 ---
 
-### Running Tests
+## 📌 Document Links (สารบัญเอกสารสำคัญ)
 
-Run all unit and integration tests:
+* 📖 **[PROGRESS.md](PROGRESS.md)**: สรุปสถานะโครงการล่าสุด, บันทึกการทดสอบ, ขั้นตอนการรันบน Production, และการติดตั้งในเครื่อง/Environment ใหม่
+* 🤖 **[AGENTS.md](AGENTS.md)**: คำแนะนำ โครงสร้างโฟลเดอร์ สถาปัตยกรรม และกฎเกณฑ์สำหรับ AI Coding Agents (Cursor, Claude Code, Copilot, Antigravity)
+* 🛠️ **[docs/development.md](docs/development.md)**: คู่มือการพัฒนาอย่างละเอียด, การเชื่อมต่อฐานข้อมูล Supabase / PostgreSQL, และการรัน Playwright Tests
+* 📋 **[docs/quotation-image-system.md](docs/quotation-image-system.md)**: ข้อกำหนดและสเปกระบบฉบับเต็ม
+
+---
+
+## 🌐 Live System URLs (ระบบที่เปิดใช้งานจริง)
+
+* **Web Application (Vercel):** [https://quotation-image-system.vercel.app](https://quotation-image-system.vercel.app)
+* **API Backend (Render):** [https://quotation-api-h4ta.onrender.com](https://quotation-api-h4ta.onrender.com)
+
+---
+
+## ⚡ Quickstart (เริ่มต้นใช้งานด่วนในเครื่องใหม่)
+
+### 1. ติดตั้ง Dependencies
+```bash
+# Python backend
+python -m pip install -r requirements.txt
+
+# Node.js frontend
+cd apps/web
+npm install
+cd ../..
+```
+
+### 2. รันระบบ (Local Development)
+
+* **วิธีที่ 1 (สะดวกสุดบน Windows):**  
+  ดับเบิลคลิก `start-production.bat` หรือรัน `.\start-production.ps1` ใน PowerShell
+
+* **วิธีที่ 2 (เปิดแยก 2 Terminal):**
+  * **Terminal 1 (Backend):**
+    ```powershell
+    $env:PYTHONPATH = "apps/api"
+    python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+    ```
+  * **Terminal 2 (Frontend):**
+    ```powershell
+    cd apps/web
+    npm run dev
+    ```
+  * เปิดบราวเซอร์ที่: `http://127.0.0.1:3000`
+
+---
+
+## 🧪 การรันชุดทดสอบ (Running Tests)
 
 ```bash
+# Backend Unit Tests (47 tests)
 python -m unittest discover -s apps/api/tests -p "test_*.py"
-```
 
----
+# Build Next.js Production
+npm --prefix apps/web run build
 
-### Running the Phase 1 CLI
-
-Process any quotation PDF from the command line:
-
-```bash
-# Set PYTHONPATH to apps/api
-$env:PYTHONPATH="apps/api"   # On Windows PowerShell
-# export PYTHONPATH="apps/api" # On Linux / macOS
-
-python -m app.cli <path_to_quotation.pdf> -p <path_to_products.json> -o <output_path.pdf>
-```
-
-Example:
-
-```bash
-$env:PYTHONPATH="apps/api"; python -m app.cli sample_quotation.pdf -p sample_products.json -o output.pdf
+# Cloud Deployment Verification
+python test_render_upload.py
 ```
