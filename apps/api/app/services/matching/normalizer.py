@@ -5,7 +5,7 @@ from typing import Optional
 
 # Unicode dashes to normalize to ASCII hyphen-minus '-'
 # Includes en-dash (\u2013), em-dash (\u2014), horizontal bar (\u2015), minus sign (\u2212), figure dash (\u2012)
-UNICODE_DASHES_PATTERN = re.compile(r"[\u2010\u2011\u2012\u2013\u2014\u2015\u2212\uFE58\uFE63\uFF0D]")
+UNICODE_DASHES_PATTERN = re.compile(r"[\u00AD\u2010\u2011\u2012\u2013\u2014\u2015\u2212\uFE58\uFE63\uFF0D]")
 
 # Whitespace cleaner: tabs, newlines, zero-width spaces, repeated spaces
 WHITESPACE_PATTERN = re.compile(r"[\s\u200B\uFEFF]+")

@@ -9,12 +9,14 @@ import fitz  # PyMuPDF
 
 from app.core.template import DEFAULT_TEMPLATE, QuotationTemplate
 from app.models.quotation import BoundingBox, QuotationItem
+from app.services.pdf.visible_text import visible_words
+from app.services.matching.normalizer import UNICODE_DASHES_PATTERN
 
 logger = logging.getLogger(__name__)
 
 # Regular expressions for identifying candidate SKU/model strings in description text
 # Real SKUs and product models contain digits or structured prefixes
-SKU_WITH_DIGITS_PATTERN = re.compile(r"\b(?=.*\d)[A-Z0-9]+(?:[-_/][A-Z0-9]+)+\b", re.IGNORECASE)
+SKU_WITH_DIGITS_PATTERN = re.compile(r"\b(?=.*\d)[A-Z0-9]+(?:[-_/.][A-Z0-9]+)+\b", re.IGNORECASE)
 ALPHANUM_CODE_PATTERN = re.compile(r"\b(?=.*\d)[A-Z0-9]{3,}\b", re.IGNORECASE)
 
 
@@ -49,7 +51,7 @@ class QuotationPDFParser:
         try:
             for page_index in range(len(doc)):
                 page = doc[page_index]
-                words = page.get_text("words")  # list of (x0, y0, x1, y1, word, block_no, line_no, word_no)
+                words = visible_words(page)  # list of (x0, y0, x1, y1, word, block_no, line_no, word_no)
                 total_words_count += len(words)
 
                 page_items = self._parse_page(page, page_index + 1, words)
@@ -233,10 +235,17 @@ class QuotationPDFParser:
         if not desc_text:
             return None, None
 
+        # Normalize before token extraction, otherwise a Unicode hyphen truncates codes.
+        desc_text = UNICODE_DASHES_PATTERN.sub("-", desc_text)
+        # A labeled SKU is more specific than a model mentioned earlier in the row.
+        sku_match = re.search(r"\b(?:MODEL\s*/\s*)?SKU\s*:\s*([A-Z0-9]+(?:[-_/.][A-Z0-9]+)*)", desc_text, re.I)
+        if sku_match:
+            return sku_match.group(1), None
+
         # 1. Check for explicit MODEL or # designation in description:
         # e.g. "MODEL CSHL550", "MODEL: 1120CBR-110", "# MFC3535-BL", "# SSG-22L"
         explicit_match = re.search(
-            r"(?:MODEL:?|#)\s*([A-Z0-9]+(?:[-_/][A-Z0-9]+)*)", desc_text, re.IGNORECASE
+            r"(?:MODEL:?|#)\s*([A-Z0-9]+(?:[-_/.][A-Z0-9]+)*)", desc_text, re.IGNORECASE
         )
         if explicit_match:
             candidate = explicit_match.group(1).strip()

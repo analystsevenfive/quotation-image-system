@@ -1,6 +1,7 @@
 """Product matching engine implementing 5-tier matching priority."""
 
 from collections import defaultdict
+import re
 from typing import Dict, List, Optional, Tuple
 
 from app.models.product import Product
@@ -68,6 +69,12 @@ class ProductMatcher:
             if model_val:
                 norm_model = normalize_sku(model_val)
                 self._model_index[norm_model].append(p)
+            # Imported model fields can be truncated (e.g. 331 instead of 331.044).
+            # Retain the full model encoded after a structured catalog brand prefix.
+            if re.match(r"^[A-Z]+[0-9]+-", normalize_sku(p.sku)):
+                sku_model = extract_model_from_sku(p.sku)
+                if sku_model and normalize_sku(sku_model) != normalize_sku(model_val):
+                    self._model_index[normalize_sku(sku_model)].append(p)
 
     def match(
         self,

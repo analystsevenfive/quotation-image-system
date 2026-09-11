@@ -1,4 +1,5 @@
 """PyMuPDF renderer for inserting product images into quotation PDFs."""
+from app.services.pdf.visible_text import visible_words
 
 import logging
 from pathlib import Path
@@ -44,6 +45,7 @@ class QuotationPDFRenderer:
             raise PDFRenderingError("Invalid pdf_source type")
 
         try:
+            page_words = {}
             for item in items:
                 item.image_inserted = False
                 item.image_bbox = None
@@ -57,6 +59,9 @@ class QuotationPDFRenderer:
                     continue
 
                 page = doc[page_idx]
+                if page_idx not in page_words:
+                    page_words[page_idx] = visible_words(page)
+                words = page_words[page_idx]
 
                 try:
                     img_w, img_h = get_image_dimensions(img_bytes)
@@ -64,7 +69,7 @@ class QuotationPDFRenderer:
                         item_bbox=item.bbox,
                         image_width=img_w,
                         image_height=img_h,
-                        words=page.get_text('words'),
+                        words=words,
                         template=self.template,
                     )
 
@@ -73,12 +78,12 @@ class QuotationPDFRenderer:
                         continue
 
                     if item.manual_image_bbox:
-                        validate_placement(img_bbox, item, page, (img_w, img_h), self.template)
+                        validate_placement(img_bbox, item, page, (img_w, img_h), self.template, words=words)
 
                     # Target rectangle in PDF points
                     rect = fitz.Rect(img_bbox.x0, img_bbox.y0, img_bbox.x1, img_bbox.y1)
 
-                    if any(rect.intersects(fitz.Rect(word[:4])) for word in page.get_text("words")):
+                    if any(rect.intersects(fitz.Rect(word[:4])) for word in words):
                         item.error_message = "Image area overlaps document text; image skipped"
                         continue
 

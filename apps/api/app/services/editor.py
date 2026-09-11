@@ -1,4 +1,5 @@
 """Image preparation and saved placements shared by review and generation."""
+from app.services.pdf.visible_text import visible_words
 import fitz
 from app.services.pdf.fitter import calculate_safe_placement, get_image_dimensions
 from app.services.pdf.placement import editing_bounds, normalized_box, from_normalized, validate_placement
@@ -8,6 +9,7 @@ from app.models.quotation import MatchStatus, MatchMethod, BoundingBox
 
 def prepare_images(service, quotation):
     with fitz.open(stream=quotation.source, filetype='pdf') as doc:
+        page_words = {}
         for index, item in enumerate(quotation.items):
             data = quotation.images.get(index)
             if data is None and item.matched_product:
@@ -17,9 +19,11 @@ def prepare_images(service, quotation):
             item.image_bbox = None
             if data:
                 page = doc[item.page_number-1]
+                if item.page_number not in page_words:
+                    page_words[item.page_number] = visible_words(page)
                 dimensions = get_image_dimensions(data)
                 item.image_bbox = item.manual_image_bbox or calculate_safe_placement(
-                    item.bbox, *dimensions, page.get_text('words'), service.renderer.template)
+                    item.bbox, *dimensions, page_words[item.page_number], service.renderer.template)
                 item.error_message = None if item.image_bbox else 'No safe image placement'
             elif item.matched_product:
                 item.error_message = 'Product image unavailable'
@@ -124,6 +128,6 @@ def editor_view(service, quotation):
             })
         pages = [{'width': page.rect.width, 'height': page.rect.height,
                   'text': [normalized_box(BoundingBox(x0=w[0], y0=w[1], x1=w[2], y1=w[3]), page)
-                           for w in page.get_text('words')]}
+                           for w in visible_words(page)]}
                  for page in doc]
         return result, pages

@@ -161,3 +161,25 @@ generated PDFs and stubbed images and can run offline.
 Framework setup follows [Next.js installation](https://nextjs.org/docs/app/getting-started/installation),
 [FastAPI file uploads](https://fastapi.tiangolo.com/tutorial/request-files/) and
 [React-PDF worker setup](https://github.com/wojtekmaj/react-pdf).
+
+
+## Covered text and Unicode product codes
+
+PDF analysis, editor collision geometry and export use the shared
+`services/pdf/visible_text.py` extractor. It ignores words whose glyphs are
+fully covered by later, opaque, ungrouped rectangular fills. The source PDF is
+never redacted or rasterized. Transparent fills, outlines, complex/clipped
+shapes and partially covered words are retained conservatively; this is not a
+general PDF visibility solver or document sanitization feature.
+
+SKU extraction normalizes Unicode hyphens (including U+00AD), preserves decimal
+model codes and prioritizes explicit `SKU:` / `MODEL / SKU:` labels. Model
+matching also indexes the full suffix of structured catalog brand SKUs, so an
+imported truncated model such as `331` does not prevent matching `331.044`.
+Duplicate candidates continue to require manual review.
+
+The local 34-page `QT_TEST_100_EXACT_TEMPLATE (1).pdf` contains text underneath
+painted replacement rows. The corrected parser detects 100 visible item rows;
+models `SS120-2` and `CSMHDTK145-000` have multiple catalog candidates and must
+remain under review. Synthetic regression coverage is in `test_visible_text.py`;
+the company PDF is not added as a committed test fixture.

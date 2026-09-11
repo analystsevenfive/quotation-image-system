@@ -1,4 +1,5 @@
 """Shared constraints for direct manipulation and native PDF export."""
+from app.services.pdf.visible_text import visible_words
 import math
 from app.models.quotation import BoundingBox
 
@@ -25,7 +26,7 @@ def from_normalized(rect, page):
                        y1=(rect.y+rect.height)*page.rect.height)
 
 
-def validate_placement(box, item, page, dimensions, template):
+def validate_placement(box, item, page, dimensions, template, words=None):
     if not all(math.isfinite(v) for v in (box.x0, box.y0, box.x1, box.y1)):
         raise ValueError('ตำแหน่งรูปไม่ถูกต้อง')
     bounds = editing_bounds(item, page, template)
@@ -39,5 +40,5 @@ def validate_placement(box, item, page, dimensions, template):
     if abs(box.width/box.height/aspect-1) > 0.005:
         raise ValueError('กรุณาปรับขนาดโดยรักษาสัดส่วนเดิมของรูป')
     if any(box.x0 < w[2] and box.x1 > w[0] and box.y0 < w[3] and box.y1 > w[1]
-           for w in page.get_text('words')):
+           for w in (visible_words(page) if words is None else words)):
         raise ValueError('รูปทับข้อความ กรุณาเลื่อนหรือย่อรูปให้อยู่ในช่องว่าง')
