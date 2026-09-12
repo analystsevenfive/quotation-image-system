@@ -32,9 +32,8 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SHOPIFY_SHOP: ${{ secrets.SHOPIFY_SHOP || 'sevenfive-4062.myshopify.com' }}
-          SHOPIFY_CLIENT_ID: ${{ secrets.SHOPIFY_CLIENT_ID || '696e1e9162c702cc07c2f94a1beacf8a' }}
-          SHOPIFY_CLIENT_SECRET: ${{ secrets.SHOPIFY_CLIENT_SECRET }}
-          SHOPIFY_ACCESS_TOKEN: ${{ secrets.SHOPIFY_ACCESS_TOKEN }}
+          SHOPIFY_CLIENT_ID: ${{ secrets.CLIENT_ID || secrets.SHOPIFY_CLIENT_ID || '696e1e9162c702cc07c2f94a1beacf8a' }}
+          SHOPIFY_CLIENT_SECRET: ${{ secrets.SHOPIFY_CLIENT_SECRET || secrets.CLIENT_SECRET }}
           PYTHONPATH: apps/api
         run: |
           python -m app.services.shopify_sync --no-json
