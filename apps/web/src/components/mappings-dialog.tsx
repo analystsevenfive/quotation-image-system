@@ -73,39 +73,39 @@ export default function MappingsDialog({ open, onClose, onMappingChanged }: Prop
         role="dialog"
         aria-modal="true"
         aria-labelledby="mappings-title"
-        className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl"
+        className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-stone-100 px-6 py-5">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 text-teal-800">
-              <BookmarkCheck size={19} />
+        <div className="flex items-center justify-between border-b border-[var(--border)] px-6 py-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] bg-[var(--brand-soft)] text-[var(--brand)] shadow-2xs">
+              <BookmarkCheck size={20} />
             </div>
             <div>
-              <h2 id="mappings-title" className="font-semibold text-stone-900">
+              <h2 id="mappings-title" className="font-bold text-[var(--brand-dark)] text-base">
                 คู่สินค้าที่ระบบจำไว้ (Saved SKU Mappings)
               </h2>
-              <p className="text-xs text-stone-500">
+              <p className="text-xs text-[var(--muted)] mt-0.5">
                 รายการ SKU ที่เคยจับคู่ด้วยตัวเอง ระบบจะจับคู่ให้อัตโนมัติเมื่อพบในใบเสนอราคาฉบับใหม่
               </p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" aria-label="ปิด" onClick={onClose}>
+          <Button variant="ghost" size="icon" aria-label="ปิด" onClick={onClose} className="rounded-full text-[var(--muted)] hover:text-[var(--text)]">
             <X size={18} />
           </Button>
         </div>
 
         {/* Search Bar */}
-        <div className="border-b border-stone-100 px-6 py-3">
+        <div className="border-b border-[var(--border)] bg-[var(--surface-soft)]/50 px-6 py-3.5">
           <div className="relative">
-            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
             <input
               type="text"
               placeholder="ค้นหา SKU ในใบเสนอราคา หรือรหัสสินค้าแคตตาล็อก…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-xl border border-stone-200 bg-stone-50/50 py-2 pl-9 pr-4 text-xs placeholder:text-stone-400 focus:border-teal-600 focus:bg-white focus:outline-none"
+              className="w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] py-2.5 pl-9 pr-4 text-xs text-[var(--text)] placeholder:text-[var(--muted)]/60 focus:border-[var(--brand)] focus:outline-none shadow-2xs"
             />
           </div>
         </div>
@@ -113,22 +113,22 @@ export default function MappingsDialog({ open, onClose, onMappingChanged }: Prop
         {/* Content List */}
         <div className="flex-1 overflow-auto p-6">
           {loading ? (
-            <div className="flex h-48 items-center justify-center gap-2 text-xs text-stone-500">
-              <Loader2 size={16} className="animate-spin text-teal-700" />
+            <div className="flex h-48 items-center justify-center gap-2 text-xs text-[var(--muted)]">
+              <Loader2 size={16} className="animate-spin text-[var(--brand)]" />
               <span>กำลังโหลดข้อมูลการจำคู่สินค้า…</span>
             </div>
           ) : filtered.length === 0 ? (
             <div className="flex h-48 flex-col items-center justify-center text-center">
-              <Package size={32} className="text-stone-300" />
-              <p className="mt-3 text-sm font-medium text-stone-700">
+              <Package size={34} className="text-[var(--muted)]/40" />
+              <p className="mt-3 text-sm font-semibold text-[var(--brand-dark)]">
                 {search ? 'ไม่พบการจับคู่ที่ค้นหา' : 'ยังไม่มีการจำคู่สินค้า'}
               </p>
-              <p className="mt-1 text-xs text-stone-400 max-w-sm">
+              <p className="mt-1 text-xs text-[var(--muted)] max-w-sm">
                 เมื่อคุณเลือกสินค้าให้กับ SKU ที่ระบบหาไม่พบในหน้าตรวจสินค้า ระบบจะบันทึกการจับคู่นั้นไว้ที่นี่โดยอัตโนมัติ
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {filtered.map((item) => {
                 const dateStr = item.updated_at
                   ? new Date(item.updated_at * 1000).toLocaleDateString('th-TH', {
@@ -140,37 +140,37 @@ export default function MappingsDialog({ open, onClose, onMappingChanged }: Prop
                   <div
                     key={item.detected_value}
                     data-testid={`mapping-row-${item.detected_value}`}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white p-4 transition-all hover:border-teal-300 hover:shadow-xs"
+                    className="flex items-center justify-between gap-3 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] p-4 transition-all hover:border-[var(--brand)]/40 hover:bg-[var(--brand-soft)]/15 shadow-2xs"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-md bg-stone-100 px-2 py-0.5 font-mono text-xs font-semibold text-stone-800">
+                        <span className="rounded-md bg-[var(--surface-soft)] border border-[var(--border)] px-2 py-0.5 font-mono text-xs font-bold text-[var(--brand-dark)]">
                           {item.detected_value}
                         </span>
-                        <ArrowRight size={13} className="text-stone-400" />
-                        <span className="rounded-md bg-teal-50 px-2 py-0.5 font-mono text-xs font-semibold text-teal-900">
+                        <ArrowRight size={13} className="text-[var(--accent)]" />
+                        <span className="rounded-md bg-[var(--brand-soft)] border border-[#c3ebd2] px-2 py-0.5 font-mono text-xs font-bold text-[var(--brand-strong)]">
                           {item.product_sku || `ID: ${item.product_id}`}
                         </span>
                         {item.product_model && (
-                          <span className="text-xs text-stone-500">({item.product_model})</span>
+                          <span className="text-xs text-[var(--muted)]">({item.product_model})</span>
                         )}
                       </div>
                       {dateStr && (
-                        <p className="mt-1 text-[11px] text-stone-400">จำไว้เมื่อ: {dateStr}</p>
+                        <p className="mt-1 text-[11px] text-[var(--muted)]">จำไว้เมื่อ: {dateStr}</p>
                       )}
                     </div>
 
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 shrink-0 text-stone-400 hover:text-red-600"
+                      className="h-8 w-8 shrink-0 text-[var(--muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] rounded-[10px]"
                       title="ยกเลิกการจำคู่นี้"
                       aria-label={`ยกเลิกการจำคู่นี้ ${item.detected_value}`}
                       disabled={deletingKey === item.detected_value}
                       onClick={() => void handleDelete(item.detected_value)}
                     >
                       {deletingKey === item.detected_value ? (
-                        <Loader2 size={13} className="animate-spin" />
+                        <Loader2 size={13} className="animate-spin text-[var(--danger)]" />
                       ) : (
                         <Trash2 size={14} />
                       )}

@@ -6,13 +6,21 @@ import {Button} from '@/components/ui/button';
 import {api, type Product, type Item, type Quotation, type Rect} from '@/lib/api';
 import MappingsDialog from '@/components/mappings-dialog';
 
-const PdfPreview = dynamic(()=>import('@/components/pdf-preview'), {ssr:false, loading:()=> <div className="p-20 text-center">กำลังเปิดเอกสาร…</div>});
+const PdfPreview = dynamic(()=>import('@/components/pdf-preview'), {ssr:false, loading:()=> <div className="p-20 text-center text-sm text-[var(--muted)]">กำลังเปิดเอกสาร…</div>});
 const labels = {matched:'จับคู่แล้ว', manual:'เลือกแล้ว', needs_review:'รอตรวจสอบ', missing:'ไม่พบสินค้า'};
 
 function Thumbnail({product,imageUrl}: {product:Product|null;imageUrl?:string|null}) {
   const [failed, setFailed] = useState(false);
   useEffect(()=>setFailed(false), [product?.id,imageUrl]);
-  return <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-stone-100 bg-white">{(imageUrl||product?.has_image) && !failed ? <img src={imageUrl||`/api/products/${product!.id}/image`} alt={product?.sku||'รูปที่อัปโหลด'} className="h-14 w-14 object-contain" onError={()=>setFailed(true)}/> : <ImagePlus size={22} className="text-stone-300"/>}</div>;
+  return (
+    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[14px] border border-[var(--border)] bg-[var(--surface-soft)] shadow-2xs">
+      {(imageUrl||product?.has_image) && !failed ? (
+        <img src={imageUrl||`/api/products/${product!.id}/image`} alt={product?.sku||'รูปที่อัปโหลด'} className="h-14 w-14 object-contain" onError={()=>setFailed(true)}/>
+      ) : (
+        <ImagePlus size={22} className="text-[var(--muted)]/40"/>
+      )}
+    </div>
+  );
 }
 
 export default function Home() {
@@ -213,192 +221,323 @@ export default function Home() {
   const matched=quotation?.items.filter(i=>i.status==='matched'||i.status==='manual').length||0;
   const review=quotation?.items.filter(i=>i.status==='needs_review').length||0;
   const missing=quotation?.items.filter(i=>!i.has_image).length||0;
-  return <div className="min-h-screen">
-    <header className="border-b border-stone-200 bg-white">
-      <div className="mx-auto flex max-w-[1440px] items-center justify-between px-6 py-4 lg:px-10">
-        <div className="flex items-center gap-3">
-          <img
-            src="/logo.png"
-            alt="Seven Five"
-            className="h-11 w-11 shrink-0 object-contain"
-          />
-          <div>
-            <p className="font-bold tracking-tight">Quotation Studio</p>
-            <p className="text-xs text-stone-500">SEVEN FIVE · PRODUCT IMAGES</p>
+
+  return (
+    <div className="min-h-screen">
+      {/* Top Header */}
+      <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--surface)]/95 backdrop-blur-sm shadow-[0_2px_12px_rgba(11,35,27,0.03)]">
+        <div className="mx-auto flex max-w-[1440px] items-center justify-between px-6 py-3.5 lg:px-10">
+          <div className="flex items-center gap-3.5">
+            <img
+              src="/logo.png"
+              alt="Seven Five"
+              className="h-11 w-11 shrink-0 object-contain"
+            />
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="font-extrabold tracking-tight text-[var(--brand-dark)] text-base">Quotation Studio</p>
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
+              </div>
+              <p className="text-[11px] font-semibold tracking-wider text-[var(--muted)] uppercase">SEVEN FIVE · PRODUCT IMAGES</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1.5 text-xs text-[var(--text)] border-[var(--border)] hover:bg-[var(--brand-soft)] hover:text-[var(--brand-strong)] hover:border-[var(--brand)]"
+              onClick={() => setMappingsOpen(true)}
+            >
+              <BookmarkCheck size={15} className="text-[var(--brand)]" />
+              คู่สินค้าที่จำไว้
+            </Button>
+            {backendStatus === 'ready' && (
+              <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-[var(--success-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--success)] border border-[#c3ebd2]">
+                <span className="h-2 w-2 rounded-full bg-[var(--success)] animate-pulse" />
+                ระบบพร้อมใช้งาน (Production Ready)
+              </span>
+            )}
+            {backendStatus === 'checking' && (
+              <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-[var(--warning-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--warning)] border border-[#eed09c]" title="กำลังเชื่อมต่อหรือปลุกเซิร์ฟเวอร์ Backend (Render Free Tier)">
+                <Loader2 size={12} className="animate-spin text-[var(--warning)]" />
+                กำลังเชื่อมต่อเซิร์ฟเวอร์…
+              </span>
+            )}
+            {backendStatus === 'error' && (
+              <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-[var(--danger-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--danger)] border border-[#fcc]" title="ไม่สามารถเชื่อมต่อ Backend ได้ โปรดตรวจสอบ API_URL บน Vercel">
+                <span className="h-2 w-2 rounded-full bg-[var(--danger)]" />
+                เชื่อมต่อ Backend ไม่สำเร็จ
+              </span>
+            )}
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9 gap-1.5 text-xs text-stone-700 hover:text-teal-800"
-            onClick={() => setMappingsOpen(true)}
-          >
-            <BookmarkCheck size={15} />
-            คู่สินค้าที่จำไว้
-          </Button>
-          {backendStatus === 'ready' && (
-            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-teal-50 px-3 py-1.5 text-xs font-medium text-teal-800">
-              <span className="h-1.5 w-1.5 rounded-full bg-teal-600 animate-pulse" />
-              ระบบพร้อมใช้งาน (Production Ready)
-            </span>
-          )}
-          {backendStatus === 'checking' && (
-            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800" title="กำลังเชื่อมต่อหรือปลุกเซิร์ฟเวอร์ Backend (Render Free Tier)">
-              <Loader2 size={12} className="animate-spin" />
-              กำลังเชื่อมต่อเซิร์ฟเวอร์…
-            </span>
-          )}
-          {backendStatus === 'error' && (
-            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700" title="ไม่สามารถเชื่อมต่อ Backend ได้ โปรดตรวจสอบ API_URL บน Vercel">
-              <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-              เชื่อมต่อ Backend ไม่สำเร็จ
-            </span>
-          )}
-        </div>
-      </div>
-    </header>
-    <main className="mx-auto max-w-[1440px] px-6 py-8 lg:px-10">
-      <div className="mb-9 flex flex-wrap items-center gap-3 text-sm">{['อัปโหลดเอกสาร','ตรวจสอบสินค้า','ดาวน์โหลด PDF'].map((label,index)=><div key={label} className="flex items-center gap-3"><span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs ${index===(quotation?.generated?2:quotation?1:0)?'bg-teal-800 text-white':'bg-stone-200 text-stone-500'}`}>{index+1}</span><span className="text-stone-600">{label}</span>{index<2&&<ArrowRight size={14} className="mx-2 text-stone-300"/>}</div>)}</div>
-      {error&&<div role="alert" className="mb-6 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}<button aria-label="ปิดข้อความ" onClick={()=>setError('')}><X size={18}/></button></div>}
-      {busy&&<div role="status" className="mb-6 flex items-center gap-3 rounded-xl bg-teal-50 p-4 text-sm text-teal-900"><Loader2 size={18} className="animate-spin"/>{busy}</div>}
-      {!quotation ? <section className="enter mx-auto max-w-3xl pt-8 text-center">
-        <h1 className="text-3xl font-semibold leading-snug lg:text-4xl">เติมรูปสินค้าให้ใบเสนอราคา</h1>
-        <div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);void upload(e.dataTransfer.files[0])}} className={`mt-9 rounded-3xl border-2 border-dashed px-6 py-14 transition-colors ${drag?'border-teal-600 bg-teal-50':'border-stone-300 bg-white'}`}>
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-teal-50 text-teal-800"><UploadCloud size={30}/></div><h2 className="text-lg font-semibold">ลากใบเสนอราคามาวางที่นี่</h2><p className="mb-6 mt-2 text-sm text-stone-500">หรือเลือกไฟล์จากเครื่องของคุณ</p><Button disabled={!!busy||gesturing} onClick={()=>input.current?.click()}><FileText size={17}/>เลือกไฟล์ PDF</Button><input ref={input} className="hidden" type="file" accept="application/pdf,.pdf" aria-label="เลือกใบเสนอราคา" onChange={e=>void upload(e.target.files?.[0])}/>
-        </div>
-      </section>:<section className="enter">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-5"><div><p className="mb-2 text-xs font-semibold tracking-widest text-teal-700">{quotation.generated?'DOCUMENT READY':'REVIEW YOUR QUOTATION'}</p><h1 className="max-w-2xl break-all text-2xl font-semibold">{quotation.filename}</h1><p className="mt-2 text-sm text-stone-500">ตรวจสอบสินค้าและรูปภาพก่อนดาวน์โหลดเอกสาร</p></div><Button variant="outline" disabled={!!busy||gesturing} onClick={()=>{setQuotation(null);setSelectedIds([]);setError('')}}><RotateCcw size={16}/>เริ่มเอกสารใหม่</Button></div>
-        <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {([[quotation.items.length,'รายการทั้งหมด'],[matched,'จับคู่สินค้าแล้ว'],[review,'รอตรวจสอบ']] as [number,string][]).map(([n,l])=><div key={l} className="rounded-2xl border border-stone-200 bg-white px-5 py-4"><span className="text-2xl font-semibold">{n}</span><span className="ml-3 text-xs text-stone-500">{l}</span></div>)}
-          {missing > 0 ? (
-            <button
-              key="missing"
-              onClick={scrollToFirstMissing}
-              className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-left transition-colors hover:border-amber-400 hover:bg-amber-100 group"
-              title="คลิกเพื่อไปยังรายการแรกที่ยังไม่มีรูป"
-            >
-              <span className="text-2xl font-semibold text-amber-700">{missing}</span>
-              <span className="ml-3 text-xs text-amber-700">ยังไม่มีรูปที่เลือก</span>
-              <span className="ml-1 text-xs text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity">↓</span>
-            </button>
-          ) : (
-            <div key="missing" className="rounded-2xl border border-stone-200 bg-white px-5 py-4"><span className="text-2xl font-semibold text-teal-700">{missing}</span><span className="ml-3 text-xs text-stone-500">ยังไม่มีรูปที่เลือก</span></div>
-          )}
-        </div>
-        {quotation.generated&&<div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-teal-200 bg-teal-50 p-5"><div className="flex items-center gap-3"><CheckCircle2 className="text-teal-700"/><div><p className="font-semibold text-teal-900">PDF พร้อมดาวน์โหลด</p><p className="mt-1 text-sm text-teal-800">เพิ่มรูปแล้ว {quotation.images_inserted} จาก {quotation.items.length} รายการ{quotation.images_inserted<quotation.items.length?' · รายการที่เหลือคงเอกสารเดิมไว้':''}</p></div></div></div>}
-        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(330px,1fr)]">
-          <PdfPreview key={quotation.id} quotation={quotation} page={page} onPage={changePage} selected={activeItem} selectedIds={selectedIds} onSelect={activate} onToggleSelect={toggleSelect} onClearSelect={clearSelect} disabled={!!busy} onSave={savePlacement} onUpload={uploadImage} cropTarget={cropTarget} onCropTargetHandled={()=>setCropTarget(null)} onGesture={setGesturing} canUndo={!!quotation.can_undo} canRedo={!!quotation.can_redo} onUndo={()=>void undo()} onRedo={()=>void redo()} onDelete={deleteImages}/>
-          <aside className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
-            <div className="border-b border-stone-100 px-5 py-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="font-semibold">สินค้าในใบเสนอราคา</h2>
-                  <p className="mt-0.5 text-xs text-stone-500">เลือกรายการ แล้วลากรูป, ครอบตัด หรือเลือกหลายรูปเพื่อลบพร้อมกัน</p>
-                </div>
-                {quotation.items.some(i => i.has_image) && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs text-stone-600 hover:text-teal-800"
-                    disabled={!!busy || gesturing}
-                    onClick={() => {
-                      const imageCount = quotation.items.filter(i => i.has_image).length;
-                      if (selectedIds.length === imageCount && imageCount > 0) {
-                        clearSelect();
-                      } else {
-                        selectAllWithImages();
-                      }
-                    }}
-                  >
-                    {selectedIds.length === quotation.items.filter(i => i.has_image).length && selectedIds.length > 0
-                      ? 'ยกเลิกเลือกทั้งหมด'
-                      : 'เลือกทั้งหมดที่มีรูป'}
-                  </Button>
-                )}
+      </header>
+
+      {/* Main Content */}
+      <main className="mx-auto max-w-[1440px] px-6 py-8 lg:px-10">
+        {/* Step Indicator */}
+        <div className="mb-8 flex flex-wrap items-center gap-3 text-sm">
+          {['อัปโหลดเอกสาร','ตรวจสอบสินค้า','ดาวน์โหลด PDF'].map((label,index)=>{
+            const isActive = index === (quotation?.generated ? 2 : quotation ? 1 : 0);
+            const isDone = index < (quotation?.generated ? 2 : quotation ? 1 : 0);
+            return (
+              <div key={label} className="flex items-center gap-2.5">
+                <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-all ${
+                  isActive
+                    ? 'bg-[var(--brand)] text-white shadow-sm ring-2 ring-[var(--brand-soft)]'
+                    : isDone
+                    ? 'bg-[var(--brand-soft)] text-[var(--brand-strong)]'
+                    : 'bg-[var(--surface-soft)] text-[var(--muted)] border border-[var(--border)]'
+                }`}>
+                  {index+1}
+                </span>
+                <span className={`font-medium ${isActive ? 'text-[var(--brand-dark)] font-bold' : 'text-[var(--muted)]'}`}>{label}</span>
+                {index<2&&<ArrowRight size={14} className="mx-2 text-[var(--border)]"/>}
               </div>
-              {selectedIds.length > 0 && (
-                <div className="mt-3 flex items-center justify-between rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-xs">
-                  <span className="font-medium text-teal-900">เลือกอยู่ {selectedIds.length} รายการ</span>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-[11px] text-stone-600 hover:text-stone-900"
-                      onClick={clearSelect}
-                    >
-                      ยกเลิก
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="h-6 gap-1 bg-red-600 px-2 text-[11px] text-white hover:bg-red-700"
-                      disabled={!!busy || gesturing}
-                      onClick={() => void deleteImages(selectedIds)}
-                    >
-                      <Trash2 size={11} />
-                      ลบที่เลือก ({selectedIds.length})
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div ref={listRef} className="max-h-[58vh] divide-y divide-stone-100 overflow-auto">
-              {quotation.items.map(item=><article key={item.id} ref={el => { itemRefs.current[item.id] = el; }} className={`p-5 transition-colors duration-300 ${highlightId === item.id ? 'bg-amber-100 ring-2 ring-amber-400 ring-inset' : item.id===activeItem || selectedIds.includes(item.id)?'bg-teal-50/60':''}`}>
-                <div className="flex gap-3">
-                  <div className="flex flex-col items-center gap-2 pt-0.5">
-                    <input
-                      type="checkbox"
-                      data-testid={`checkbox-item-${item.id}`}
-                      aria-label={`เลือกรูปรายการ ${item.number}`}
-                      checked={selectedIds.includes(item.id)}
-                      disabled={!item.has_image || !!busy || gesturing}
-                      onChange={() => toggleSelect(item.id)}
-                      className="h-4 w-4 rounded border-stone-300 text-teal-600 focus:ring-teal-500 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                    />
-                    <Thumbnail product={item.product} imageUrl={item.image_url}/>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <button className="text-left text-sm font-semibold hover:text-teal-700" disabled={!!busy||gesturing} onClick={()=>activate(item.id)}>{item.number}. {item.sku||'รายการเพิ่มเติม'}</button>
-                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-stone-500">{item.description}</p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <span className={`rounded-full px-2 py-1 text-[11px] ${item.status==='matched'||item.status==='manual'?'bg-teal-50 text-teal-800':'bg-amber-50 text-amber-800'}`}>{labels[item.status]}</span>
-                      {item.match_method === 'manual' && item.status === 'matched' && (
-                        <span className="rounded-full bg-cyan-50 px-2 py-1 text-[11px] font-medium text-cyan-900 border border-cyan-200">จำจากประวัติ</span>
-                      )}
-                      <span className="text-[11px] text-stone-400">หน้า {item.page}</span>
-                    </div>
-                    {item.product&&<p className="mt-2 text-xs text-stone-500">เลือก: {item.product.sku}</p>}
-                    {(!item.has_image||item.warning)&&<p className="mt-2 text-xs text-amber-700">{item.warning?'รูปไม่พร้อมใช้หรือพื้นที่ไม่พอ ระบบข้ามรูปนี้':'ยังไม่มีรูปสินค้า · สร้าง PDF ต่อได้'}</p>}
-                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <Button variant="ghost" size="sm" className="h-7 px-0 text-xs text-teal-800" disabled={!!busy||gesturing} onClick={()=>{activate(item.id);setEditing(item);setQuery(item.sku||'');setResults([])}}><Search size={13}/>{item.product?'เปลี่ยนสินค้า / รูป':'ค้นหาและเลือกสินค้า'}</Button>
-                      <Button variant="ghost" size="sm" className="h-7 px-0 text-xs text-teal-800" disabled={!!busy||gesturing} onClick={()=>activate(item.id)}><ImagePlus size={13}/>จัดรูป / วางภาพ</Button>
-                      {item.has_image&&<Button variant="ghost" size="sm" className="h-7 px-0 text-xs text-teal-800" disabled={!!busy||gesturing} onClick={()=>{activate(item.id);setCropTarget(item.id);}}><Crop size={13}/>ครอบตัดรูป</Button>}
-                      {item.has_image&&<Button variant="ghost" size="sm" className="h-7 px-0 text-xs text-red-600 hover:bg-transparent hover:text-red-700" disabled={!!busy||gesturing} onClick={()=>void deleteImages([item.id])}><Trash2 size={13}/>ลบรูป</Button>}
-                      {item.uploaded_image&&item.product&&<Button variant="ghost" size="sm" className="h-7 px-0 text-xs text-stone-500 hover:text-teal-800" disabled={!!busy||gesturing} onClick={()=>void select(item.product!,item.id)}><RotateCcw size={12}/>คืนค่ารูป Catalog</Button>}
-                    </div>
-                    {item.uploaded_image&&<p className="mt-1 text-xs text-teal-700">ใช้รูปที่ปรับแต่ง / อัปโหลด / วางจากคลิปบอร์ด</p>}
-                  </div>
-                </div>
-              </article>)}
-            </div>
-            <div className="border-t border-stone-200 bg-stone-50 p-5">
-              {missing>0&&<p className="mb-3 text-xs leading-5 text-stone-500">ยังไม่มีรูปที่เลือก {missing} รายการ คุณสามารถสร้างเอกสารต่อได้</p>}
-              <Button variant={quotation.generated ? 'outline' : 'default'} className="w-full" disabled={!!busy||gesturing} onClick={()=>void generate()}><ImagePlus size={17}/>{quotation.generated?'สร้าง PDF อีกครั้ง':missing?'สร้าง PDF โดยข้ามรูปที่ยังไม่มี':'สร้าง PDF พร้อมรูปสินค้า'}<ArrowRight size={16}/></Button>
-              {quotation.generated && (
-                <Button asChild className="mt-2.5 w-full bg-teal-800 hover:bg-teal-900 text-white shadow-sm">
-                  <a href={`/api/quotations/${quotation.id}/download`}><Download size={17}/>ดาวน์โหลด PDF</a>
-                </Button>
-              )}
-            </div>
-          </aside>
+            );
+          })}
         </div>
-      </section>}
-      {editing&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-5" onClick={()=>!busy&&setEditing(null)}><div role="dialog" aria-modal="true" aria-labelledby="search-title" className="max-h-[80vh] w-full max-w-xl overflow-auto rounded-2xl bg-white p-6 shadow-xl" onClick={e=>e.stopPropagation()}><div className="mb-5 flex items-center justify-between"><h2 id="search-title" className="font-semibold">เลือกสินค้าสำหรับรายการ {editing.number}</h2><Button variant="ghost" size="icon" aria-label="ปิด" disabled={!!busy||gesturing} onClick={()=>setEditing(null)}><X size={18}/></Button></div><input autoFocus aria-label="ค้นหา SKU หรือรุ่นสินค้า" placeholder="ค้นหา SKU หรือรุ่นสินค้า…" value={query} onChange={e=>setQuery(e.target.value)} className="mb-4 w-full rounded-xl border border-stone-300 px-4 py-3 text-sm"/>{editing.candidates.length>0&&<p className="mb-2 text-xs text-amber-700">พบสินค้าที่เป็นไปได้หลายรายการ กรุณาเลือกให้ตรงกับใบเสนอราคา</p>}{searching&&<p className="py-3 text-sm text-stone-500">กำลังค้นหา…</p>}{[...new Map([...editing.candidates,...results].map(p=>[p.id,p])).values()].map(p=><button key={p.id} disabled={!!busy||gesturing} onClick={()=>void select(p)} className="flex w-full items-center gap-4 rounded-xl p-3 text-left hover:bg-teal-50 disabled:opacity-50"><Thumbnail product={p}/><div><p className="text-sm font-semibold">{p.sku}</p><p className="mt-1 text-xs text-stone-500">{p.model}{!p.has_image?' · ไม่มีรูป':''}</p></div><ArrowRight className="ml-auto text-teal-700" size={16}/></button>)}{!searching&&!results.length&&!editing.candidates.length&&<p className="p-6 text-center text-sm text-stone-500">ไม่พบสินค้า ลองค้นหารหัสหรือรุ่นอื่น</p>}</div></div>}
-      <MappingsDialog
-        open={mappingsOpen}
-        onClose={() => setMappingsOpen(false)}
-      />
-    </main>
-  </div>;
+
+        {/* Global Notifications */}
+        {error&&<div role="alert" className="mb-6 flex items-center justify-between rounded-[var(--radius-lg)] border border-[var(--danger)]/30 bg-[var(--danger-soft)] p-4 text-sm text-[var(--danger)] shadow-2xs">{error}<button aria-label="ปิดข้อความ" onClick={()=>setError('')} className="text-[var(--danger)] hover:opacity-75"><X size={18}/></button></div>}
+        {busy&&<div role="status" className="mb-6 flex items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--brand)]/20 bg-[var(--brand-soft)] p-4 text-sm font-medium text-[var(--brand-dark)] shadow-2xs"><Loader2 size={18} className="animate-spin text-[var(--brand)]"/>{busy}</div>}
+
+        {!quotation ? (
+          /* Upload State */
+          <section className="enter mx-auto max-w-3xl pt-6 text-center">
+            <h1 className="text-3xl font-extrabold tracking-tight text-[var(--brand-dark)] leading-snug lg:text-4xl">เติมรูปสินค้าให้ใบเสนอราคา</h1>
+            <div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);void upload(e.dataTransfer.files[0])}} className={`mt-8 rounded-[var(--radius-xl)] border-2 border-dashed px-6 py-14 transition-all shadow-[var(--shadow)] ${drag?'border-[var(--brand)] bg-[var(--brand-soft)] scale-[1.01]':'border-[var(--border)] bg-[var(--surface)] hover:border-[var(--brand)]/50'}`}>
+              <div className="mx-auto mb-6 flex h-18 w-18 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--brand-soft)] text-[var(--brand)] shadow-2xs"><UploadCloud size={34}/></div>
+              <h2 className="text-lg font-bold text-[var(--brand-dark)]">ลากใบเสนอราคามาวางที่นี่</h2>
+              <p className="mb-6 mt-2 text-sm text-[var(--muted)]">หรือเลือกไฟล์จากเครื่องของคุณ</p>
+              <Button disabled={!!busy||gesturing} onClick={()=>input.current?.click()} className="shadow-sm"><FileText size={17}/>เลือกไฟล์ PDF</Button>
+              <input ref={input} className="hidden" type="file" accept="application/pdf,.pdf" aria-label="เลือกใบเสนอราคา" onChange={e=>void upload(e.target.files?.[0])}/>
+            </div>
+          </section>
+        ) : (
+          /* Document Review & Editor State */
+          <section className="enter">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-5">
+              <div>
+                <p className="mb-1 text-xs font-bold tracking-widest text-[var(--brand)] uppercase">{quotation.generated?'DOCUMENT READY':'REVIEW YOUR QUOTATION'}</p>
+                <h1 className="max-w-2xl break-all text-2xl font-extrabold text-[var(--brand-dark)]">{quotation.filename}</h1>
+                <p className="mt-1 text-sm text-[var(--muted)]">ตรวจสอบสินค้าและรูปภาพก่อนดาวน์โหลดเอกสาร</p>
+              </div>
+              <Button variant="outline" disabled={!!busy||gesturing} onClick={()=>{setQuotation(null);setSelectedIds([]);setError('')}}>
+                <RotateCcw size={16}/>เริ่มเอกสารใหม่
+              </Button>
+            </div>
+
+            {/* Stat Cards */}
+            <div className="mb-6 grid grid-cols-2 gap-3.5 lg:grid-cols-4">
+              {([[quotation.items.length,'รายการทั้งหมด'],[matched,'จับคู่สินค้าแล้ว'],[review,'รอตรวจสอบ']] as [number,string][]).map(([n,l])=>(
+                <div key={l} className="rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] px-5 py-4 shadow-[var(--shadow-sm)]">
+                  <span className="text-2xl font-extrabold text-[var(--brand-dark)] font-['Plus_Jakarta_Sans']">{n}</span>
+                  <span className="ml-3 text-xs font-medium text-[var(--muted)]">{l}</span>
+                </div>
+              ))}
+              {missing > 0 ? (
+                <button
+                  key="missing"
+                  onClick={scrollToFirstMissing}
+                  className="rounded-[var(--radius-xl)] border border-[#eed09c] bg-[var(--warning-soft)] px-5 py-4 text-left transition-all hover:border-[#d8a85d] hover:shadow-sm group cursor-pointer"
+                  title="คลิกเพื่อไปยังรายการแรกที่ยังไม่มีรูป"
+                >
+                  <span className="text-2xl font-extrabold text-[#9a6700] font-['Plus_Jakarta_Sans']">{missing}</span>
+                  <span className="ml-3 text-xs font-semibold text-[#9a6700]">ยังไม่มีรูปที่เลือก</span>
+                  <span className="ml-1 text-xs text-[#9a6700] opacity-0 group-hover:opacity-100 transition-opacity">↓</span>
+                </button>
+              ) : (
+                <div key="missing" className="rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] px-5 py-4 shadow-[var(--shadow-sm)]">
+                  <span className="text-2xl font-extrabold text-[var(--brand)] font-['Plus_Jakarta_Sans']">{missing}</span>
+                  <span className="ml-3 text-xs font-medium text-[var(--muted)]">ยังไม่มีรูปที่เลือก</span>
+                </div>
+              )}
+            </div>
+
+            {/* Ready Banner */}
+            {quotation.generated && (
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-[var(--radius-xl)] border border-[#c3ebd2] bg-[var(--success-soft)] p-5 shadow-2xs">
+                <div className="flex items-center gap-3.5">
+                  <CheckCircle2 className="h-6 w-6 text-[var(--success)] shrink-0"/>
+                  <div>
+                    <p className="font-bold text-[var(--brand-dark)]">PDF พร้อมดาวน์โหลด</p>
+                    <p className="mt-0.5 text-sm text-[var(--success)]">เพิ่มรูปแล้ว {quotation.images_inserted} จาก {quotation.items.length} รายการ{quotation.images_inserted<quotation.items.length?' · รายการที่เหลือคงเอกสารเดิมไว้':''}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Split View: Stage + Aside List */}
+            <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(330px,1fr)]">
+              <PdfPreview
+                key={quotation.id}
+                quotation={quotation}
+                page={page}
+                onPage={changePage}
+                selected={activeItem}
+                selectedIds={selectedIds}
+                onSelect={activate}
+                onToggleSelect={toggleSelect}
+                onClearSelect={clearSelect}
+                disabled={!!busy}
+                onSave={savePlacement}
+                onUpload={uploadImage}
+                cropTarget={cropTarget}
+                onCropTargetHandled={()=>setCropTarget(null)}
+                onGesture={setGesturing}
+                canUndo={!!quotation.can_undo}
+                canRedo={!!quotation.can_redo}
+                onUndo={()=>void undo()}
+                onRedo={()=>void redo()}
+                onDelete={deleteImages}
+              />
+              <aside className="overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow)]">
+                <div className="border-b border-[var(--border)] bg-[var(--surface-soft)]/60 px-5 py-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="font-bold text-[var(--brand-dark)]">สินค้าในใบเสนอราคา</h2>
+                      <p className="mt-0.5 text-xs text-[var(--muted)]">เลือกรายการ แล้วลากรูป, ครอบตัด หรือเลือกหลายรูปเพื่อลบพร้อมกัน</p>
+                    </div>
+                    {quotation.items.some(i => i.has_image) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs text-[var(--muted)] hover:text-[var(--brand)]"
+                        disabled={!!busy || gesturing}
+                        onClick={() => {
+                          const imageCount = quotation.items.filter(i => i.has_image).length;
+                          if (selectedIds.length === imageCount && imageCount > 0) {
+                            clearSelect();
+                          } else {
+                            selectAllWithImages();
+                          }
+                        }}
+                      >
+                        {selectedIds.length === quotation.items.filter(i => i.has_image).length && selectedIds.length > 0
+                          ? 'ยกเลิกเลือกทั้งหมด'
+                          : 'เลือกทั้งหมดที่มีรูป'}
+                      </Button>
+                    )}
+                  </div>
+                  {selectedIds.length > 0 && (
+                    <div className="mt-3 flex items-center justify-between rounded-[var(--radius-md)] border border-[#c3ebd2] bg-[var(--brand-soft)] px-3 py-2 text-xs">
+                      <span className="font-bold text-[var(--brand-dark)]">เลือกอยู่ {selectedIds.length} รายการ</span>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-[11px] text-[var(--muted)] hover:text-[var(--text)]"
+                          onClick={clearSelect}
+                        >
+                          ยกเลิก
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="h-6 gap-1 bg-[var(--danger)] px-2.5 text-[11px] text-white hover:bg-[#991b1b]"
+                          disabled={!!busy || gesturing}
+                          onClick={() => void deleteImages(selectedIds)}
+                        >
+                          <Trash2 size={11} />
+                          ลบที่เลือก ({selectedIds.length})
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div ref={listRef} className="max-h-[58vh] divide-y divide-[var(--border)]/60 overflow-auto">
+                  {quotation.items.map(item=>(
+                    <article key={item.id} ref={el => { itemRefs.current[item.id] = el; }} className={`p-5 transition-colors duration-200 ${highlightId === item.id ? 'bg-[var(--warning-soft)] ring-2 ring-[var(--accent)] ring-inset' : item.id===activeItem || selectedIds.includes(item.id)?'bg-[var(--brand-soft)]/50 hover:bg-[var(--brand-soft)]/70':'hover:bg-[var(--surface-soft)]'}`}>
+                      <div className="flex gap-3">
+                        <div className="flex flex-col items-center gap-2 pt-0.5">
+                          <input
+                            type="checkbox"
+                            data-testid={`checkbox-item-${item.id}`}
+                            aria-label={`เลือกรูปรายการ ${item.number}`}
+                            checked={selectedIds.includes(item.id)}
+                            disabled={!item.has_image || !!busy || gesturing}
+                            onChange={() => toggleSelect(item.id)}
+                            className="h-4 w-4 rounded-[4px] border-[var(--border)] text-[var(--brand)] focus:ring-[var(--brand)] cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed accent-[#0c7255]"
+                          />
+                          <Thumbnail product={item.product} imageUrl={item.image_url}/>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <button className="text-left text-sm font-bold text-[var(--brand-dark)] hover:text-[var(--brand)]" disabled={!!busy||gesturing} onClick={()=>activate(item.id)}>{item.number}. {item.sku||'รายการเพิ่มเติม'}</button>
+                          <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--muted)]">{item.description}</p>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold border ${
+                              item.status==='matched'||item.status==='manual'
+                                ? 'bg-[var(--success-soft)] text-[var(--success)] border-[#c3ebd2]'
+                                : 'bg-[var(--warning-soft)] text-[var(--warning)] border-[#eed09c]'
+                            }`}>
+                              {labels[item.status]}
+                            </span>
+                            {item.match_method === 'manual' && item.status === 'matched' && (
+                              <span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-0.5 text-[11px] font-semibold text-[#9a6700] border border-[#eed09c]">จำจากประวัติ</span>
+                            )}
+                            <span className="text-[11px] text-[var(--muted)]">หน้า {item.page}</span>
+                          </div>
+                          {item.product&&<p className="mt-2 text-xs text-[var(--muted)]">เลือก: <span className="font-semibold text-[var(--text)]">{item.product.sku}</span></p>}
+                          {(!item.has_image||item.warning)&&<p className="mt-2 text-xs font-medium text-[var(--warning)]">{item.warning?'รูปไม่พร้อมใช้หรือพื้นที่ไม่พอ ระบบข้ามรูปนี้':'ยังไม่มีรูปสินค้า · สร้าง PDF ต่อได้'}</p>}
+                          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <Button variant="ghost" size="sm" className="h-7 px-0 text-xs font-semibold text-[var(--brand)] hover:text-[var(--brand-strong)] hover:bg-transparent" disabled={!!busy||gesturing} onClick={()=>{activate(item.id);setEditing(item);setQuery(item.sku||'');setResults([])}}><Search size={13}/>{item.product?'เปลี่ยนสินค้า / รูป':'ค้นหาและเลือกสินค้า'}</Button>
+                            <Button variant="ghost" size="sm" className="h-7 px-0 text-xs font-semibold text-[var(--brand)] hover:text-[var(--brand-strong)] hover:bg-transparent" disabled={!!busy||gesturing} onClick={()=>activate(item.id)}><ImagePlus size={13}/>จัดรูป / วางภาพ</Button>
+                            {item.has_image&&<Button variant="ghost" size="sm" className="h-7 px-0 text-xs font-semibold text-[var(--brand)] hover:text-[var(--brand-strong)] hover:bg-transparent" disabled={!!busy||gesturing} onClick={()=>{activate(item.id);setCropTarget(item.id);}}><Crop size={13}/>ครอบตัดรูป</Button>}
+                            {item.has_image&&<Button variant="ghost" size="sm" className="h-7 px-0 text-xs font-semibold text-[var(--danger)] hover:bg-transparent hover:text-[#991b1b]" disabled={!!busy||gesturing} onClick={()=>void deleteImages([item.id])}><Trash2 size={13}/>ลบรูป</Button>}
+                            {item.uploaded_image&&item.product&&<Button variant="ghost" size="sm" className="h-7 px-0 text-xs text-[var(--muted)] hover:text-[var(--brand)] hover:bg-transparent" disabled={!!busy||gesturing} onClick={()=>void select(item.product!,item.id)}><RotateCcw size={12}/>คืนค่ารูป Catalog</Button>}
+                          </div>
+                          {item.uploaded_image&&<p className="mt-1 text-xs font-medium text-[var(--brand)]">ใช้รูปที่ปรับแต่ง / อัปโหลด / วางจากคลิปบอร์ด</p>}
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+                <div className="border-t border-[var(--border)] bg-[var(--surface-soft)]/60 p-5">
+                  {missing>0&&<p className="mb-3 text-xs leading-5 text-[var(--muted)]">ยังไม่มีรูปที่เลือก {missing} รายการ คุณสามารถสร้างเอกสารต่อได้</p>}
+                  <Button variant={quotation.generated ? 'outline' : 'default'} className="w-full shadow-sm" disabled={!!busy||gesturing} onClick={()=>void generate()}><ImagePlus size={17}/>{quotation.generated?'สร้าง PDF อีกครั้ง':missing?'สร้าง PDF โดยข้ามรูปที่ยังไม่มี':'สร้าง PDF พร้อมรูปสินค้า'}<ArrowRight size={16}/></Button>
+                  {quotation.generated && (
+                    <Button asChild className="mt-2.5 w-full bg-[var(--brand-dark)] hover:bg-[var(--brand-strong)] text-white shadow-sm font-semibold">
+                      <a href={`/api/quotations/${quotation.id}/download`}><Download size={17}/>ดาวน์โหลด PDF</a>
+                    </Button>
+                  )}
+                </div>
+              </aside>
+            </div>
+          </section>
+        )}
+
+        {/* Search & Select SKU Dialog */}
+        {editing&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-5" onClick={()=>!busy&&setEditing(null)}>
+          <div role="dialog" aria-modal="true" aria-labelledby="search-title" className="max-h-[80vh] w-full max-w-xl overflow-auto rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] p-6 shadow-[var(--shadow)]" onClick={e=>e.stopPropagation()}>
+            <div className="mb-5 flex items-center justify-between">
+              <h2 id="search-title" className="font-bold text-[var(--brand-dark)] text-base">เลือกสินค้าสำหรับรายการ {editing.number}</h2>
+              <Button variant="ghost" size="icon" aria-label="ปิด" disabled={!!busy||gesturing} onClick={()=>setEditing(null)}><X size={18}/></Button>
+            </div>
+            <input autoFocus aria-label="ค้นหา SKU หรือรุ่นสินค้า" placeholder="ค้นหา SKU หรือรุ่นสินค้า…" value={query} onChange={e=>setQuery(e.target.value)} className="mb-4 w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-soft)] px-4 py-2.5 text-sm focus:bg-[var(--surface)] focus:border-[var(--brand)] focus:outline-none"/>
+            {editing.candidates.length>0&&<p className="mb-2 text-xs font-medium text-[var(--warning)]">พบสินค้าที่เป็นไปได้หลายรายการ กรุณาเลือกให้ตรงกับใบเสนอราคา</p>}
+            {searching&&<p className="py-3 text-sm text-[var(--muted)]">กำลังค้นหา…</p>}
+            <div className="space-y-1">
+              {[...new Map([...editing.candidates,...results].map(p=>[p.id,p])).values()].map(p=>(
+                <button key={p.id} disabled={!!busy||gesturing} onClick={()=>void select(p)} className="flex w-full items-center gap-4 rounded-[var(--radius-lg)] p-3 text-left transition-colors hover:bg-[var(--brand-soft)] disabled:opacity-50 border border-transparent hover:border-[var(--brand)]/30 cursor-pointer">
+                  <Thumbnail product={p}/>
+                  <div>
+                    <p className="text-sm font-bold text-[var(--brand-dark)]">{p.sku}</p>
+                    <p className="mt-1 text-xs text-[var(--muted)]">{p.model}{!p.has_image?' · ไม่มีรูป':''}</p>
+                  </div>
+                  <ArrowRight className="ml-auto text-[var(--brand)]" size={16}/>
+                </button>
+              ))}
+            </div>
+            {!searching&&!results.length&&!editing.candidates.length&&<p className="p-6 text-center text-sm text-[var(--muted)]">ไม่พบสินค้า ลองค้นหารหัสหรือรุ่นอื่น</p>}
+          </div>
+        </div>}
+
+        <MappingsDialog
+          open={mappingsOpen}
+          onClose={() => setMappingsOpen(false)}
+        />
+      </main>
+    </div>
+  );
 }

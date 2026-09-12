@@ -1,11 +1,83 @@
 @import "tailwindcss";
-:root {color-scheme: light;}
-body {margin:0;background:#f5f5f1;color:#242e2c;font-family:Arial,Tahoma,sans-serif;}
-button,a,input { -webkit-tap-highlight-color:transparent; }
-button {cursor:pointer;}
-.pdf-stage .react-pdf__Page {box-shadow:0 5px 28px #233d3420;max-width:100%;}
-.pdf-stage canvas {max-width:100%;height:auto!important;}
-input:focus-visible {outline:2px solid #0f766e;outline-offset:2px;}
-@keyframes enter {from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-.enter {animation:enter .3s ease-out;}
-@media(prefers-reduced-motion:reduce){.enter{animation:none}}
+
+:root {
+  color-scheme: light;
+
+  /* 2.1 Brand & Primary Colors (เขียวมรกต) */
+  --brand: #0c7255;
+  --brand-strong: #095a43;
+  --brand-dark: #0b3b31;
+  --brand-soft: #e8f5ef;
+
+  /* 2.2 Accent Color (ทองเหลือง / ทองอ่อน) */
+  --accent: #d8a85d;
+  --accent-soft: #fcf6ec;
+
+  /* 2.3 Surface & Neutral Colors (พื้นผิวและตัวอักษร) */
+  --background: #f2f5f3;
+  --surface: #ffffff;
+  --surface-soft: #f7f9f8;
+  --text: #13231e;
+  --muted: #66756f;
+  --border: #dce5e1;
+
+  /* 2.4 Semantic Status Colors (สถานะระบบ) */
+  --success: #087443;
+  --success-soft: #eaf8f0;
+  --danger: #b42318;
+  --danger-soft: #fff0ee;
+  --warning: #9a6700;
+  --warning-soft: #fff7df;
+
+  /* 2.5 Radius & Elevation (ความโค้งมนและเงา) */
+  --radius-xl: 26px;
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-sm: 8px;
+  --shadow: 0 20px 60px rgba(11, 35, 27, 0.05), 0 4px 18px rgba(11, 35, 27, 0.015);
+  --shadow-sm: 0 2px 8px rgba(11, 35, 27, 0.04);
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--text);
+  font-family: 'Plus Jakarta Sans', 'Noto Sans Thai', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button, a, input {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  cursor: pointer;
+}
+
+.pdf-stage .react-pdf__Page {
+  box-shadow: 0 8px 32px rgba(11, 35, 27, 0.08);
+  max-width: 100%;
+}
+
+.pdf-stage canvas {
+  max-width: 100%;
+  height: auto !important;
+}
+
+input:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+@keyframes enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.enter {
+  animation: enter .3s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enter { animation: none; }
+}

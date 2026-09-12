@@ -564,33 +564,33 @@ export default function PdfPreview({
   }
 
   return (
-    <div data-testid="pdf-preview" data-rendered={rendered} className="overflow-hidden rounded-2xl border border-stone-200 bg-[#e9ece8]">
+    <div data-testid="pdf-preview" data-rendered={rendered} className="overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border)] bg-[#e2e8e5] shadow-[var(--shadow)]">
       {/* Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-200 bg-white px-4 py-3">
-        <span className="text-sm font-medium">จัดรูปบนใบเสนอราคา</span>
-        <div className="flex items-center gap-1 text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+        <span className="text-sm font-bold text-[var(--brand-dark)]">จัดรูปบนใบเสนอราคา</span>
+        <div className="flex items-center gap-1 text-xs text-[var(--muted)]">
           <Button
             variant={isSpaceDown ? 'outline' : 'ghost'}
             size="icon"
             aria-label="เครื่องมือเลื่อนมุมมอง (Spacebar)"
             title="เครื่องมือเลื่อนมุมมอง (กด Spacebar ค้างเพื่อเลื่อน)"
             onClick={() => setIsSpaceDown((prev) => !prev)}
-            className={isSpaceDown ? 'bg-teal-100 text-teal-800' : ''}
+            className={isSpaceDown ? 'bg-[var(--brand-soft)] text-[var(--brand-strong)] border-[var(--brand)]' : 'text-[var(--muted)]'}
           >
             <Hand size={16} />
           </Button>
-          <div className="mx-0.5 h-4 w-px bg-stone-200" />
+          <div className="mx-0.5 h-4 w-px bg-[var(--border)]" />
           <Button variant="ghost" size="icon" aria-label="ซูมออก" disabled={zoom <= 1 || disabled || !!cropMode} onClick={() => setZoom((z) => Math.max(1, z - 0.25))}>
             <ZoomOut size={16} />
           </Button>
-          <span className="w-10 text-center">{Math.round(zoom * 100)}%</span>
+          <span className="w-10 text-center font-semibold font-mono text-[var(--text)]">{Math.round(zoom * 100)}%</span>
           <Button variant="ghost" size="icon" aria-label="ซูมเข้า" disabled={zoom >= 2 || disabled || !!cropMode} onClick={() => setZoom((z) => Math.min(2, z + 0.25))}>
             <ZoomIn size={16} />
           </Button>
           <Button variant="ghost" size="icon" aria-label="หน้าก่อนหน้า" disabled={page <= 1 || disabled || !!cropMode} onClick={() => onPage(page - 1)}>
             <ChevronLeft size={16} />
           </Button>
-          <span>
+          <span className="font-semibold text-[var(--brand-dark)]">
             {page} / {quotation.pages.length}
           </span>
           <Button variant="ghost" size="icon" aria-label="หน้าถัดไป" disabled={page >= quotation.pages.length || disabled || !!cropMode} onClick={() => onPage(page + 1)}>
@@ -600,16 +600,16 @@ export default function PdfPreview({
       </div>
 
       {/* Toolbar / Actions */}
-      <div className="border-b border-stone-200 bg-white px-4 py-3">
+      <div className="border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3">
         {cropMode ? (
           /* Inline Crop Active Toolbar */
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1.5 rounded-lg bg-teal-50 border border-teal-200 px-3 py-1.5 text-xs font-semibold text-teal-900">
-                <Crop size={14} className="text-teal-700" />
+              <span className="flex items-center gap-1.5 rounded-[var(--radius-md)] bg-[var(--brand-soft)] border border-[#c3ebd2] px-3 py-1.5 text-xs font-bold text-[var(--brand-dark)]">
+                <Crop size={14} className="text-[var(--brand)]" />
                 โหมดครอบตัดภาพ: รายการ {active?.number} ({active?.sku || 'สินค้า'})
               </span>
-              <span className="text-xs text-stone-500 hidden sm:inline">ลากกรอบมุมหรือขอบเพื่อครอบตัด</span>
+              <span className="text-xs text-[var(--muted)] hidden sm:inline">ลากกรอบมุมหรือขอบเพื่อครอบตัด</span>
             </div>
             <div className="flex items-center gap-2">
               <Button size="sm" onClick={() => void applyCrop()} disabled={savingCrop}>
@@ -630,7 +630,7 @@ export default function PdfPreview({
           /* Batch Selection Toolbar */
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <span className="rounded-lg bg-teal-50 border border-teal-200 px-3 py-1.5 text-xs font-semibold text-teal-900">
+              <span className="rounded-[var(--radius-md)] bg-[var(--brand-soft)] border border-[#c3ebd2] px-3 py-1.5 text-xs font-bold text-[var(--brand-dark)]">
                 เลือกแล้ว {selectedIds.length} รูป
               </span>
               <Button
@@ -643,7 +643,7 @@ export default function PdfPreview({
                   (e.currentTarget as HTMLElement)?.blur();
                   void onDelete?.(selectedIds);
                 }}
-                className="text-red-600 hover:bg-red-50 hover:text-red-700 font-semibold"
+                className="text-[var(--danger)] hover:bg-[var(--danger-soft)] hover:text-[#991b1b] font-semibold"
               >
                 <Trash2 size={14} />
                 ลบรูปที่เลือก ({selectedIds.length})
@@ -654,7 +654,7 @@ export default function PdfPreview({
                 aria-label="ยกเลิกการเลือก"
                 disabled={disabled}
                 onClick={() => onClearSelect?.()}
-                className="text-stone-500 hover:text-stone-700"
+                className="text-[var(--muted)] hover:text-[var(--text)]"
               >
                 <X size={14} />
                 ยกเลิก
@@ -671,7 +671,7 @@ export default function PdfPreview({
                   e.currentTarget.blur();
                   onUndo?.();
                 }}
-                className="text-stone-700"
+                className="text-[var(--text)]"
               >
                 <Undo2 size={14} />
                 ย้อนกลับ
@@ -686,7 +686,7 @@ export default function PdfPreview({
                   e.currentTarget.blur();
                   onRedo?.();
                 }}
-                className="text-stone-700"
+                className="text-[var(--text)]"
               >
                 <Redo2 size={14} />
                 ทำซ้ำ
@@ -697,15 +697,15 @@ export default function PdfPreview({
           /* Normal Editing Toolbar */
           <>
             {selectedIds.length > 1 ? (
-              <div className="mb-3 flex items-center justify-between rounded-lg border border-teal-200 bg-teal-50/80 px-3 py-1.5 text-xs text-teal-900">
-                <span className="font-semibold">
+              <div className="mb-3 flex items-center justify-between rounded-[var(--radius-md)] border border-[#c3ebd2] bg-[var(--brand-soft)] px-3 py-1.5 text-xs text-[var(--brand-dark)]">
+                <span className="font-bold">
                   เลือกอยู่ {selectedIds.length} รายการ
                 </span>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 text-xs text-stone-600 hover:text-stone-900"
+                    className="h-7 text-xs text-[var(--muted)] hover:text-[var(--text)]"
                     onClick={onClearSelect}
                   >
                     ยกเลิกการเลือก
@@ -713,7 +713,7 @@ export default function PdfPreview({
                   <Button
                     variant="destructive"
                     size="sm"
-                    className="h-7 gap-1 bg-red-600 text-xs text-white hover:bg-red-700"
+                    className="h-7 gap-1 bg-[var(--danger)] text-xs text-white hover:bg-[#991b1b]"
                     onClick={() => void onDelete?.(selectedIds)}
                   >
                     <Trash2 size={13} />
@@ -722,8 +722,8 @@ export default function PdfPreview({
                 </div>
               </div>
             ) : (
-              <p className="mb-3 flex items-center gap-2 text-xs text-teal-900">
-                <Move size={14} />
+              <p className="mb-3 flex items-center gap-2 text-xs font-semibold text-[var(--brand-dark)]">
+                <Move size={14} className="text-[var(--brand)]" />
                 {active ? `กำลังแก้รูป: รายการ ${active.number} · ${active.sku || 'รูปที่เลือก'}` : 'เลือกรายการสินค้าทางขวาเพื่อจัดรูป'}
               </p>
             )}
@@ -759,13 +759,13 @@ export default function PdfPreview({
                   const ids = selectedIds.length > 0 ? selectedIds : (active ? [active.id] : []);
                   if (ids.length > 0) void onDelete?.(ids);
                 }}
-                className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                className="text-[var(--danger)] hover:bg-[var(--danger-soft)] hover:text-[#991b1b]"
               >
                 <Trash2 size={13} />
                 {selectedIds.length > 1 ? `ลบรูป (${selectedIds.length})` : 'ลบรูป'}
               </Button>
 
-              <div className="mx-1 h-5 w-px bg-stone-200" />
+              <div className="mx-1 h-5 w-px bg-[var(--border)]" />
 
               <Button
                 variant="outline"
@@ -777,7 +777,7 @@ export default function PdfPreview({
                   e.currentTarget.blur();
                   onUndo?.();
                 }}
-                className="text-stone-700"
+                className="text-[var(--text)]"
               >
                 <Undo2 size={14} />
                 ย้อนกลับ
@@ -792,14 +792,14 @@ export default function PdfPreview({
                   e.currentTarget.blur();
                   onRedo?.();
                 }}
-                className="text-stone-700"
+                className="text-[var(--text)]"
               >
                 <Redo2 size={14} />
                 ทำซ้ำ
               </Button>
             </div>
-            <p className="mt-3 flex items-center gap-2 text-xs leading-5 text-stone-500">
-              <Clipboard size={13} className="shrink-0" />
+            <p className="mt-3 flex items-center gap-2 text-xs leading-5 text-[var(--muted)]">
+              <Clipboard size={13} className="shrink-0 text-[var(--accent)]" />
               ดับเบิลคลิกรูปเพื่อครอบตัดแบบ Canva · ลากรูปเพื่อย้าย · Shift+คลิก หรือติ๊กกล่องเพื่อเลือกหลายรูป · Delete ลบรูป · Ctrl+Z ย้อนกลับ · Ctrl+Y ทำซ้ำ · Ctrl+V วางภาพ
             </p>
           </>
@@ -810,7 +810,7 @@ export default function PdfPreview({
           if (file && id !== null) void onUpload(id, file);
           e.target.value = '';
         }} />
-        {message && <p role="status" className="mt-2 text-xs text-amber-800">{message}</p>}
+        {message && <p role="status" className="mt-2 text-xs font-semibold text-[var(--warning)]">{message}</p>}
       </div>
 
       {/* PDF Stage Viewport */}
@@ -847,7 +847,7 @@ export default function PdfPreview({
 
           {rendered && (
             <div className="pointer-events-none absolute inset-0">
-              {active && <div data-testid="item-bounds" className="absolute border border-dashed border-teal-500/60 bg-teal-100/5" style={style(active.bounds)} />}
+              {active && <div data-testid="item-bounds" className="absolute border border-dashed border-[var(--brand)]/60 bg-[var(--brand-soft)]/20" style={style(active.bounds)} />}
 
               {quotation.items
                 .filter((i) => i.page === page && i.image_url)
@@ -873,7 +873,7 @@ export default function PdfPreview({
                         isSpaceDown ? 'pointer-events-none' : 'pointer-events-auto'
                       } absolute ${
                         isCroppingThis ? 'z-30' : disabled ? 'cursor-wait' : 'cursor-move'
-                      } ${isSelected && !isCroppingThis ? `z-10 outline-2 ${safe ? 'outline-teal-600' : 'outline-red-500'}` : ''}`}
+                      } ${isSelected && !isCroppingThis ? `z-10 outline-2 ${safe ? 'outline-[var(--brand)]' : 'outline-[var(--danger)]'}` : ''}`}
                       style={style(rect)}
                       onPointerDown={(e) => {
                         if (isSpaceDown || isCroppingThis) return;
@@ -906,7 +906,7 @@ export default function PdfPreview({
                       onKeyDown={(e) => void nudge(e, item, rect)}
                     >
                       {isSelected && selectedIds.length > 1 && (
-                        <span className="absolute -top-2.5 -left-2.5 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-teal-700 text-white shadow ring-2 ring-white text-[10px] font-bold">
+                        <span className="absolute -top-2.5 -left-2.5 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--brand)] text-white shadow ring-2 ring-white text-[10px] font-bold">
                           <Check size={11} strokeWidth={3} />
                         </span>
                       )}
@@ -921,7 +921,7 @@ export default function PdfPreview({
                       {/* Normal Selection Handles */}
                       {isSelected && !isCroppingThis && (
                         <>
-                          <span className={`pointer-events-none absolute -top-5 left-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] text-white ${safe ? 'bg-teal-700' : 'bg-red-600'}`}>
+                          <span className={`pointer-events-none absolute -top-5 left-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-bold text-white shadow-xs ${safe ? 'bg-[var(--brand)]' : 'bg-[var(--danger)]'}`}>
                             รายการ {item.number}
                             {!safe ? ' · ทับข้อความ' : ''}
                           </span>
@@ -930,7 +930,7 @@ export default function PdfPreview({
                             aria-label={`ลากเพื่อปรับขนาดรูป ${item.number}`}
                             disabled={disabled || isSpaceDown}
                             tabIndex={-1}
-                            className="absolute -right-2 -bottom-2 h-4 w-4 touch-none rounded-sm border-2 border-white bg-teal-700 shadow"
+                            className="absolute -right-2 -bottom-2 h-4 w-4 touch-none rounded-xs border-2 border-white bg-[var(--brand)] shadow"
                             style={{cursor: 'nwse-resize'}}
                             onPointerDown={(e) => {
                               if (isSpaceDown) return;
