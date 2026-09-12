@@ -2,8 +2,8 @@ name: Shopify Catalog Sync to Supabase
 
 on:
   schedule:
-    # Runs every day at 12:00 UTC = 19:00 Bangkok / ICT (UTC+7)
-    - cron: '0 12 * * *'
+    # Runs every day at 14:07 UTC = 21:07 Bangkok / ICT (UTC+7)
+    - cron: '7 14 * * *'
   workflow_dispatch: # Allows one-click manual execution from GitHub Actions
 
 jobs:

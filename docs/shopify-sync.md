@@ -18,19 +18,15 @@ Image Normalization (`&width=200`) & Model Extraction
 Supabase PostgreSQL (`products` & `sync_logs`)
 ```
 
-- **Daily Schedule**: Runs automatically every day at **19:00 Bangkok Time** (ICT, UTC+7), which corresponds to **12:00 UTC** (`0 12 * * *`).
+- **Daily Schedule**: Runs automatically every day at **21:07 Bangkok Time** (ICT, UTC+7), which corresponds to **14:07 UTC** (`7 14 * * *`).
 - **Data Extracted**:
   - `GoodID` (`metafield(namespace: "custom", key: "good_id")`)
   - `Variant SKU` / `sku` / `winspeed`
   - `Model` (auto-extracted from SKU prefix)
-  - `Title`, `Brand` (`vendor`), `Status`
-  - `Product Type` (`custom.part_type`)
-  - `Power Type` (`custom.power_type`)
-  - `Product / Sparepart` (`custom.spapart_or_product`)
-  - `Inventory` (`inventoryQuantity`)
-  - `Price` & `Compare At Price`
+  - `Title`
   - `Image URL` (with `&width=200` optimization parameter)
   - `Website URL` (`https://www.sevenfive.co.th/products/{handle}`)
+  - `GoodBillName` (preserved from legacy / Google Sheets)
   - `last_sync_at` (timestamp)
 
 ---
@@ -38,7 +34,7 @@ Supabase PostgreSQL (`products` & `sync_logs`)
 ## 2. Triggering the Sync
 
 ### Option A: Automatic Daily Schedule (GitHub Actions)
-Runs automatically every day at **19:00 ICT** (`0 12 * * *`).
+Runs automatically every day at **21:07 ICT** (`7 14 * * *`).
 - Workflow file: `.github/workflows/shopify-sync.yml`
 - Manual trigger: Go to GitHub repository -> **Actions** -> **Shopify Catalog Sync to Supabase** -> **Run workflow**.
 
