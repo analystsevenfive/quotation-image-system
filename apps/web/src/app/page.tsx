@@ -489,21 +489,35 @@ export default function Home() {
                   ))}
                 </div>
                 <div className="border-t border-[var(--border)] bg-[var(--surface-soft)]/60 p-5">
-                  {missing>0&&<p className="mb-3 text-xs leading-5 text-[var(--muted)]">ยังไม่มีรูปที่เลือก {missing} รายการ คุณสามารถสร้างเอกสารต่อได้</p>}
-                  <Button variant={quotation.generated ? 'outline' : 'default'} className="w-full shadow-sm" disabled={!!busy||gesturing} onClick={()=>void generate()}><ImagePlus size={17}/>{quotation.generated?'สร้าง PDF อีกครั้ง':missing?'สร้าง PDF โดยข้ามรูปที่ยังไม่มี':'สร้าง PDF พร้อมรูปสินค้า'}<ArrowRight size={16}/></Button>
-                  {quotation.generated && (
-                    <Button asChild className="mt-2.5 w-full bg-[var(--brand-dark)] hover:bg-[var(--brand-strong)] text-white shadow-sm font-semibold">
-                      <a href={`/api/quotations/${quotation.id}/download`}><Download size={17}/>ดาวน์โหลด PDF</a>
-                    </Button>
+                  {quotation.generated ? (
+                    <>
+                      <Button asChild className="w-full bg-[var(--brand-dark)] hover:bg-[var(--brand-strong)] text-white shadow-sm font-semibold">
+                        <a href={`/api/quotations/${quotation.id}/download`}><Download size={17}/>ดาวน์โหลด PDF</a>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="mt-2.5 w-full border-[var(--border)] text-[var(--muted)] hover:text-[var(--brand-dark)] hover:bg-[var(--surface)] hover:border-[var(--brand)]/40 font-semibold"
+                        disabled={!!busy||gesturing}
+                        onClick={()=>{setQuotation(null);setSelectedIds([]);setError('')}}
+                      >
+                        <RotateCcw size={16}/>เริ่มเอกสารใหม่
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button className="w-full shadow-sm" disabled={!!busy||gesturing} onClick={()=>void generate()}>
+                        <ImagePlus size={17}/>{missing?'สร้าง PDF โดยข้ามรูปที่ยังไม่มี':'สร้าง PDF พร้อมรูปสินค้า'}<ArrowRight size={16}/>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="mt-2.5 w-full border-[var(--border)] text-[var(--muted)] hover:text-[var(--brand-dark)] hover:bg-[var(--surface)] hover:border-[var(--brand)]/40 font-semibold"
+                        disabled={!!busy||gesturing}
+                        onClick={()=>{setQuotation(null);setSelectedIds([]);setError('')}}
+                      >
+                        <RotateCcw size={16}/>เริ่มเอกสารใหม่
+                      </Button>
+                    </>
                   )}
-                  <Button
-                    variant="outline"
-                    className="mt-2.5 w-full border-[var(--border)] text-[var(--muted)] hover:text-[var(--brand-dark)] hover:bg-[var(--surface)] hover:border-[var(--brand)]/40 font-semibold"
-                    disabled={!!busy||gesturing}
-                    onClick={()=>{setQuotation(null);setSelectedIds([]);setError('')}}
-                  >
-                    <RotateCcw size={16}/>เริ่มเอกสารใหม่
-                  </Button>
                 </div>
               </aside>
             </div>
