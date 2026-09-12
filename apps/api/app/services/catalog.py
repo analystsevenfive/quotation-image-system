@@ -7,6 +7,18 @@ from app.services.matching.matcher import ProductMatcher
 from app.services.matching.normalizer import extract_model_from_sku
 
 
+def normalize_image_url(url: str | None, width: int = 200) -> str | None:
+    """Ensure Shopify CDN image URLs include width optimization parameter."""
+    if not url or 'cdn.shopify.com' not in url:
+        return url
+    from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+    parsed = urlparse(url)
+    qs = parse_qs(parsed.query, keep_blank_values=True)
+    qs['width'] = [str(width)]
+    new_query = urlencode(qs, doseq=True)
+    return urlunparse(parsed._replace(query=new_query))
+
+
 class Catalog:
     def __init__(self, products, mapping_store=None):
         self.products = products
@@ -27,6 +39,8 @@ class Catalog:
         products = [Product.model_validate(p) for p in json.loads(Path(path).read_text(encoding='utf-8'))]
         for index, product in enumerate(products, 1):
             product.id = index
+            if product.image_url and 'cdn.shopify.com' in product.image_url and 'width=' not in product.image_url:
+                product.image_url = normalize_image_url(product.image_url)
         return cls(products)
 
     @classmethod
@@ -35,7 +49,13 @@ class Catalog:
         from psycopg.rows import dict_row
         with psycopg.connect(url, row_factory=dict_row) as conn:
             rows = conn.execute('SELECT id, good_id, sku, winspeed, model, product_url, image_url, image_status FROM products ORDER BY id').fetchall()
-        return cls([Product.model_validate(row) for row in rows])
+        products = []
+        for row in rows:
+            p = Product.model_validate(row)
+            if p.image_url and 'cdn.shopify.com' in p.image_url and 'width=' not in p.image_url:
+                p.image_url = normalize_image_url(p.image_url)
+            products.append(p)
+        return cls(products)
 
 
 def read_excel(path):
@@ -56,7 +76,7 @@ def read_excel(path):
             description = value('goodbillname') or ''
             models = re.findall(r'(?:MODEL\s*:?|#)\s*([A-Z0-9]+(?:[-_/][A-Z0-9]+)*)', description, re.I)
             model = value('model') or (models[0] if len(set(models)) == 1 else extract_model_from_sku(sku))
-            image = value('link_image') or value('image_url')
+            image = normalize_image_url(value('link_image') or value('image_url'))
             products.append(Product(id=len(products)+1, good_id=value('good_id'), sku=sku,
                                     winspeed=value('winspeed'), model=model,
                                     product_url=value('product_url') or value('url'),

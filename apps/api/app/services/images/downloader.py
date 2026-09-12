@@ -155,8 +155,13 @@ class ImageDownloader:
             "User-Agent": "QuotationImageSystem/0.1 (FastAPI/PyMuPDF; internal-tools)"
         }
 
+        fetch_url = url_or_path
+        if 'cdn.shopify.com' in fetch_url and 'width=' not in fetch_url:
+            separator = '&' if '?' in fetch_url else '?'
+            fetch_url = f"{fetch_url}{separator}width=200"
+
         client = self._get_client()
-        with client.stream('GET', url_or_path, headers=headers) as resp:
+        with client.stream('GET', fetch_url, headers=headers) as resp:
             if resp.status_code != 200:
                 raise ImageDownloadError(f"HTTP GET returned status {resp.status_code}")
             if resp.headers.get('content-type', '').split(';')[0].strip().lower() not in SUPPORTED_CONTENT_TYPES:

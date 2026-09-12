@@ -30,8 +30,14 @@ class MockImageDownloader(ImageDownloader):
         }
 
     def get_image(self, url_or_path: str):
+        if not url_or_path:
+            return None
         if url_or_path in self.mock_images:
             return self.mock_images[url_or_path]
+        base_url = url_or_path.split("?")[0]
+        for k, v in self.mock_images.items():
+            if k == url_or_path or k.split("?")[0] == base_url:
+                return v
         return None
 
 
