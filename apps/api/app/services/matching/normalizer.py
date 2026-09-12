@@ -72,3 +72,17 @@ def extract_model_from_sku(sku: Optional[str]) -> Optional[str]:
             return suffix
 
     return None
+
+
+def normalize_image_url(url: Optional[str], width: int = 200) -> Optional[str]:
+    """Ensure Shopify CDN image URLs include width optimization parameter."""
+    if not url or "cdn.shopify.com" not in url:
+        return url
+    from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+    parsed = urlparse(url)
+    qs = parse_qs(parsed.query, keep_blank_values=True)
+    qs["width"] = [str(width)]
+    new_query = urlencode(qs, doseq=True)
+    return urlunparse(parsed._replace(query=new_query))
+
+

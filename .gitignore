@@ -26,6 +26,8 @@ img_cw76.png
 .env
 .env.*
 !.env.example
+property.js
+
 
 # IDEs & OS
 .vscode/

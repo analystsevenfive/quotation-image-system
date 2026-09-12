@@ -3,7 +3,7 @@ import logging
 import os
 import secrets
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, UploadFile, HTTPException
+from fastapi import FastAPI, Request, UploadFile, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, Field, ConfigDict
@@ -13,6 +13,7 @@ from app.services.quotations import QuotationService
 from app.services.editor import replace_image, save_placement, delete_image, delete_images
 from app.services.images.uploads import MAX_IMAGE_UPLOAD
 from app.services.matching.mappings import MappingStore
+from app.services.shopify_sync import is_sync_running, get_last_sync_status, run_sync_background
 from pathlib import Path
 
 # Automatically load .env if present in workspace root
@@ -318,6 +319,35 @@ def create_app(service=None):
         if not removed:
             raise HTTPException(404, 'Mapping not found')
         return {'status': 'deleted', 'key': key}
+
+    @app.post('/api/sync/shopify')
+    async def trigger_shopify_sync(request: Request, background_tasks: BackgroundTasks):
+        sync_secret = os.environ.get('SYNC_SECRET')
+        if sync_secret:
+            auth_header = request.headers.get('Authorization') or request.headers.get('X-Sync-Secret')
+            query_token = request.query_params.get('secret')
+            provided = query_token or (auth_header.replace('Bearer ', '').strip() if auth_header else '')
+            if provided != sync_secret:
+                raise HTTPException(401, 'Unauthorized sync request')
+
+        if is_sync_running():
+            return JSONResponse({'status': 'running', 'message': 'Sync is already in progress'}, status_code=409)
+
+        background_tasks.add_task(
+            run_sync_background,
+            database_url=os.environ.get('DATABASE_URL'),
+            refresh_service=request.app.state.service,
+        )
+        return {'status': 'started', 'message': 'Shopify catalog synchronization initiated in background'}
+
+    @app.get('/api/sync/status')
+    def get_sync_status(request: Request):
+        running = is_sync_running()
+        last_log = get_last_sync_status(os.environ.get('DATABASE_URL'))
+        return {
+            'is_running': running,
+            'last_sync': last_log,
+        }
 
     return app
 
