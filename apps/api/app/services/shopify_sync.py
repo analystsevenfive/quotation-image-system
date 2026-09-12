@@ -354,7 +354,7 @@ def process_jsonl_stream(download_url: str) -> List[Dict[str, Any]]:
                 "tags": tags,
                 "part_type": part_type,
                 "power_type": power_type,
-                "spapart_or_product": spapartOrProduct,
+                "spapart_or_product": spapart_or_product,
                 "inventory_quantity": v.get("inventoryQuantity"),
                 "price": str(v.get("price")) if v.get("price") is not None else None,
                 "compare_at_price": str(v.get("compareAtPrice")) if v.get("compareAtPrice") is not None else None,
