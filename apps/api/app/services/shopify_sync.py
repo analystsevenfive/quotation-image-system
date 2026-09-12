@@ -27,6 +27,15 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
+# Automatically load .env if present
+for env_file in [Path('.env'), Path('../../.env'), Path('../../../.env')]:
+    if env_file.exists():
+        for line in env_file.read_text(encoding='utf-8').splitlines():
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                k, v = line.split('=', 1)
+                os.environ.setdefault(k.strip(), v.strip())
+
 # Configuration & Credentials (Read from environment / .env)
 DEFAULT_SHOP = os.environ.get("SHOPIFY_SHOP", "sevenfive-4062.myshopify.com")
 DEFAULT_CLIENT_ID = os.environ.get("SHOPIFY_CLIENT_ID", "696e1e9162c702cc07c2f94a1beacf8a")
@@ -114,50 +123,41 @@ class ShopifyClient:
         self._token_expiry: float = 0
 
     def get_valid_token(self) -> str:
-        """Return valid access token, requesting a new one via client_credentials if needed."""
+        """Return valid access token, generating a fresh 24h token via OAuth client_credentials grant."""
         now = time.time()
+        # 1. Reuse existing valid token if not expiring within 5 minutes
         if self.access_token and now < self._token_expiry - 300:
             return self.access_token
 
-        # If static token provided and no expiry set, test it first
-        if self.access_token and self._token_expiry == 0:
-            try:
-                r = httpx.get(
-                    f"https://{self.shop}/admin/api/2025-01/shop.json",
-                    headers={"X-Shopify-Access-Token": self.access_token},
-                    timeout=15.0,
-                )
-                if r.status_code == 200:
-                    self._token_expiry = now + 86400  # Token is valid
+        # 2. Always auto-generate fresh token via CLIENT_ID + CLIENT_SECRET (valid 24h)
+        if self.client_id and self.client_secret:
+            logger.info("Auto-generating fresh 24h Shopify access token via client_credentials...")
+            data = {
+                "grant_type": "client_credentials",
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+            }
+            res = httpx.post(
+                f"https://{self.shop}/admin/oauth/access_token",
+                data=data,
+                timeout=25.0,
+            )
+            if res.status_code == 200:
+                res_data = res.json()
+                new_token = res_data.get("access_token")
+                if new_token:
+                    expires_in = int(res_data.get("expires_in", 86400))
+                    self.access_token = new_token
+                    self._token_expiry = now + expires_in
+                    logger.info(f"Fresh 24h token acquired successfully (valid for {expires_in}s / ~{expires_in // 3600}h)")
                     return self.access_token
-            except Exception as e:
-                logger.warning(f"Static token check warning: {e}")
+            logger.warning(f"Failed to generate OAuth token: {res.status_code} - {res.text}")
 
-        # Refresh token via OAuth client_credentials grant
-        logger.info("Requesting fresh Shopify access token via client_credentials grant...")
-        data = {
-            "grant_type": "client_credentials",
-            "client_id": self.client_id,
-            "client_secret": self.client_secret,
-        }
-        res = httpx.post(
-            f"https://{self.shop}/admin/oauth/access_token",
-            data=data,
-            timeout=20.0,
-        )
-        if res.status_code != 200:
-            raise RuntimeError(f"Shopify OAuth token request failed: {res.status_code} - {res.text}")
+        # 3. Fallback to pre-configured access token if client_credentials not provided
+        if self.access_token:
+            return self.access_token
 
-        res_data = res.json()
-        new_token = res_data.get("access_token")
-        if not new_token:
-            raise RuntimeError(f"No access_token returned by Shopify: {res_data}")
-
-        expires_in = int(res_data.get("expires_in", 3600))
-        self.access_token = new_token
-        self._token_expiry = now + expires_in
-        logger.info(f"Acquired new Shopify access token (valid for {expires_in}s)")
-        return self.access_token
+        raise RuntimeError("No valid Shopify access token and unable to generate one with CLIENT_ID/CLIENT_SECRET")
 
     def graphql(self, query: str, variables: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Execute a GraphQL query against Shopify Admin API."""

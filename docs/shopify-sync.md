@@ -100,6 +100,7 @@ Columns added in `apps/api/migrations/002_shopify_sync.sql`:
 - `inventory_quantity` (integer)
 - `price` (text)
 - `compare_at_price` (text)
+- `good_bill_name` (text, preserved legacy billing description)
 - `last_sync_at` (timestamptz)
 
 ### Table: `sync_logs`
@@ -114,9 +115,19 @@ Tracks execution history of syncs:
 
 ---
 
-## 4. GitHub Repository Secrets Setup
-To enable the GitHub Action to connect to Supabase:
+## 4. Automatic 24h Token Renewal & GitHub Secrets Setup
+
+Shopify Custom App access tokens expire after **24 hours**. 
+The system automatically generates a fresh 24h token before each run using OAuth `client_credentials` grant with `CLIENT_ID` and `CLIENT_SECRET`. You never need to manually copy or rotate `SHOPIFY_ACCESS_TOKEN`.
+
+### GitHub Secrets Configuration
+To enable the scheduled sync at 19:00:
 1. Go to your GitHub repository -> **Settings** -> **Secrets and variables** -> **Actions**.
-2. Click **New repository secret**.
-3. Name: `DATABASE_URL`
-4. Value: `postgresql://postgres.jisvotecloojqivgbktf:KllpKft1D27X6Y3r@aws-0-ap-south-1.pooler.supabase.com:5432/postgres`
+2. Add the following repository secrets:
+   - **`DATABASE_URL`**:
+     `postgresql://postgres.jisvotecloojqivgbktf:KllpKft1D27X6Y3r@aws-0-ap-south-1.pooler.supabase.com:5432/postgres`
+   - **`SHOPIFY_CLIENT_SECRET`**:
+     *(Get from Shopify App Settings / .env)*
+   - *(Optional)* `SHOPIFY_CLIENT_ID`:
+     `696e1e9162c702cc07c2f94a1beacf8a` (already has default in code)
+
