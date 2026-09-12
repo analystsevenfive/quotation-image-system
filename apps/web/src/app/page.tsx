@@ -1,7 +1,7 @@
 'use client';
 import dynamic from 'next/dynamic';
 import {useCallback, useEffect, useRef, useState} from 'react';
-import {ArrowRight, Check, CheckCircle2, Download, FileText, ImagePlus, Loader2, Search, UploadCloud, X, RotateCcw, Crop, Trash2, BookmarkCheck} from 'lucide-react';
+import {ArrowRight, CheckCircle2, Download, FileText, ImagePlus, Loader2, Search, UploadCloud, X, RotateCcw, Crop, Trash2, BookmarkCheck} from 'lucide-react';
 import {Button} from '@/components/ui/button';
 import {api, type Product, type Item, type Quotation, type Rect} from '@/lib/api';
 import MappingsDialog from '@/components/mappings-dialog';
@@ -266,7 +266,7 @@ export default function Home() {
         <h1 className="text-3xl font-semibold leading-snug lg:text-4xl">เติมรูปสินค้าให้ใบเสนอราคา</h1>
         <div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);void upload(e.dataTransfer.files[0])}} className={`mt-9 rounded-3xl border-2 border-dashed px-6 py-14 transition-colors ${drag?'border-teal-600 bg-teal-50':'border-stone-300 bg-white'}`}>
           <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-teal-50 text-teal-800"><UploadCloud size={30}/></div><h2 className="text-lg font-semibold">ลากใบเสนอราคามาวางที่นี่</h2><p className="mb-6 mt-2 text-sm text-stone-500">หรือเลือกไฟล์จากเครื่องของคุณ</p><Button disabled={!!busy||gesturing} onClick={()=>input.current?.click()}><FileText size={17}/>เลือกไฟล์ PDF</Button><input ref={input} className="hidden" type="file" accept="application/pdf,.pdf" aria-label="เลือกใบเสนอราคา" onChange={e=>void upload(e.target.files?.[0])}/>
-        </div><div className="mt-7 grid gap-4 text-left text-sm text-stone-500 sm:grid-cols-3">{['รักษาความคมชัดต้นฉบับ','ตรวจและเปลี่ยนสินค้าได้','สร้างต่อได้แม้รูปไม่ครบ'].map(t=><div key={t} className="flex items-center gap-2"><Check size={16} className="text-teal-700"/>{t}</div>)}</div>
+        </div>
       </section>:<section className="enter">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-5"><div><p className="mb-2 text-xs font-semibold tracking-widest text-teal-700">{quotation.generated?'DOCUMENT READY':'REVIEW YOUR QUOTATION'}</p><h1 className="max-w-2xl break-all text-2xl font-semibold">{quotation.filename}</h1><p className="mt-2 text-sm text-stone-500">ตรวจสอบสินค้าและรูปภาพก่อนดาวน์โหลดเอกสาร</p></div><Button variant="outline" disabled={!!busy||gesturing} onClick={()=>{setQuotation(null);setSelectedIds([]);setError('')}}><RotateCcw size={16}/>เริ่มเอกสารใหม่</Button></div>
         <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
