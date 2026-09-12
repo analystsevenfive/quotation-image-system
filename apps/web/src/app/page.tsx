@@ -317,15 +317,10 @@ export default function Home() {
         ) : (
           /* Document Review & Editor State */
           <section className="enter">
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-5">
-              <div>
-                <p className="mb-1 text-xs font-bold tracking-widest text-[var(--brand)] uppercase">{quotation.generated?'DOCUMENT READY':'REVIEW YOUR QUOTATION'}</p>
-                <h1 className="max-w-2xl break-all text-2xl font-extrabold text-[var(--brand-dark)]">{quotation.filename}</h1>
-                <p className="mt-1 text-sm text-[var(--muted)]">ตรวจสอบสินค้าและรูปภาพก่อนดาวน์โหลดเอกสาร</p>
-              </div>
-              <Button variant="outline" disabled={!!busy||gesturing} onClick={()=>{setQuotation(null);setSelectedIds([]);setError('')}}>
-                <RotateCcw size={16}/>เริ่มเอกสารใหม่
-              </Button>
+            <div className="mb-6">
+              <p className="mb-1 text-xs font-bold tracking-widest text-[var(--brand)] uppercase">{quotation.generated?'DOCUMENT READY':'REVIEW YOUR QUOTATION'}</p>
+              <h1 className="max-w-2xl break-all text-2xl font-extrabold text-[var(--brand-dark)]">{quotation.filename}</h1>
+              <p className="mt-1 text-sm text-[var(--muted)]">ตรวจสอบสินค้าและรูปภาพก่อนดาวน์โหลดเอกสาร</p>
             </div>
 
             {/* Stat Cards */}
@@ -501,6 +496,14 @@ export default function Home() {
                       <a href={`/api/quotations/${quotation.id}/download`}><Download size={17}/>ดาวน์โหลด PDF</a>
                     </Button>
                   )}
+                  <Button
+                    variant="outline"
+                    className="mt-2.5 w-full border-[var(--border)] text-[var(--muted)] hover:text-[var(--brand-dark)] hover:bg-[var(--surface)] hover:border-[var(--brand)]/40 font-semibold"
+                    disabled={!!busy||gesturing}
+                    onClick={()=>{setQuotation(null);setSelectedIds([]);setError('')}}
+                  >
+                    <RotateCcw size={16}/>เริ่มเอกสารใหม่
+                  </Button>
                 </div>
               </aside>
             </div>
