@@ -217,9 +217,11 @@ export default function Home() {
     <header className="border-b border-stone-200 bg-white">
       <div className="mx-auto flex max-w-[1440px] items-center justify-between px-6 py-4 lg:px-10">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-800 text-white">
-            <ImagePlus size={23}/>
-          </div>
+          <img
+            src="/logo.png"
+            alt="Seven Five"
+            className="h-11 w-11 shrink-0 object-contain"
+          />
           <div>
             <p className="font-bold tracking-tight">Quotation Studio</p>
             <p className="text-xs text-stone-500">SEVEN FIVE · PRODUCT IMAGES</p>
@@ -284,7 +286,7 @@ export default function Home() {
             <div key="missing" className="rounded-2xl border border-stone-200 bg-white px-5 py-4"><span className="text-2xl font-semibold text-teal-700">{missing}</span><span className="ml-3 text-xs text-stone-500">ยังไม่มีรูปที่เลือก</span></div>
           )}
         </div>
-        {quotation.generated&&<div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-teal-200 bg-teal-50 p-5"><div className="flex items-center gap-3"><CheckCircle2 className="text-teal-700"/><div><p className="font-semibold text-teal-900">PDF พร้อมดาวน์โหลด</p><p className="mt-1 text-sm text-teal-800">เพิ่มรูปแล้ว {quotation.images_inserted} จาก {quotation.items.length} รายการ{quotation.images_inserted<quotation.items.length?' · รายการที่เหลือคงเอกสารเดิมไว้':''}</p></div></div><Button asChild><a href={`/api/quotations/${quotation.id}/download`}><Download size={17}/>ดาวน์โหลด PDF</a></Button></div>}
+        {quotation.generated&&<div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-teal-200 bg-teal-50 p-5"><div className="flex items-center gap-3"><CheckCircle2 className="text-teal-700"/><div><p className="font-semibold text-teal-900">PDF พร้อมดาวน์โหลด</p><p className="mt-1 text-sm text-teal-800">เพิ่มรูปแล้ว {quotation.images_inserted} จาก {quotation.items.length} รายการ{quotation.images_inserted<quotation.items.length?' · รายการที่เหลือคงเอกสารเดิมไว้':''}</p></div></div></div>}
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(330px,1fr)]">
           <PdfPreview key={quotation.id} quotation={quotation} page={page} onPage={changePage} selected={activeItem} selectedIds={selectedIds} onSelect={activate} onToggleSelect={toggleSelect} onClearSelect={clearSelect} disabled={!!busy} onSave={savePlacement} onUpload={uploadImage} cropTarget={cropTarget} onCropTargetHandled={()=>setCropTarget(null)} onGesture={setGesturing} canUndo={!!quotation.can_undo} canRedo={!!quotation.can_redo} onUndo={()=>void undo()} onRedo={()=>void redo()} onDelete={deleteImages}/>
           <aside className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
@@ -382,7 +384,12 @@ export default function Home() {
             </div>
             <div className="border-t border-stone-200 bg-stone-50 p-5">
               {missing>0&&<p className="mb-3 text-xs leading-5 text-stone-500">ยังไม่มีรูปที่เลือก {missing} รายการ คุณสามารถสร้างเอกสารต่อได้</p>}
-              <Button className="w-full" disabled={!!busy||gesturing} onClick={()=>void generate()}><ImagePlus size={17}/>{quotation.generated?'สร้าง PDF อีกครั้ง':missing?'สร้าง PDF โดยข้ามรูปที่ยังไม่มี':'สร้าง PDF พร้อมรูปสินค้า'}<ArrowRight size={16}/></Button>
+              <Button variant={quotation.generated ? 'outline' : 'default'} className="w-full" disabled={!!busy||gesturing} onClick={()=>void generate()}><ImagePlus size={17}/>{quotation.generated?'สร้าง PDF อีกครั้ง':missing?'สร้าง PDF โดยข้ามรูปที่ยังไม่มี':'สร้าง PDF พร้อมรูปสินค้า'}<ArrowRight size={16}/></Button>
+              {quotation.generated && (
+                <Button asChild className="mt-2.5 w-full bg-teal-800 hover:bg-teal-900 text-white shadow-sm">
+                  <a href={`/api/quotations/${quotation.id}/download`}><Download size={17}/>ดาวน์โหลด PDF</a>
+                </Button>
+              )}
             </div>
           </aside>
         </div>

@@ -11,6 +11,7 @@ ENV/
 
 # Output generated PDFs & temporary test preview images
 QT_test_with_images.pdf
+QT_TEST_*.pdf
 sample_quotation_output.pdf
 QT_test_output_page*.png
 check_uploaded_page*.png
