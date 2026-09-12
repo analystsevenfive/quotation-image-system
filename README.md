@@ -6,6 +6,8 @@ Automated insertion of product images into quotation PDFs using PyMuPDF and Next
 
 ## 📌 Document Links (สารบัญเอกสารสำคัญ)
 
+* 📘 **[docs/SYSTEM_DOCUMENTATION.md](docs/SYSTEM_DOCUMENTATION.md)**: เอกสารสถาปัตยกรรมระบบ, Tech Stack ทั้งหมด, โครงสร้างฐานข้อมูล Supabase และ Flow การทำงานฉบับสมบูรณ์
+* 🔄 **[docs/shopify-sync.md](docs/shopify-sync.md)**: รายละเอียดระบบ Shopify Catalog Sync to Supabase และการตั้งค่ารอบเวลา
 * 📖 **[PROGRESS.md](PROGRESS.md)**: สรุปสถานะโครงการล่าสุด, บันทึกการทดสอบ, ขั้นตอนการรันบน Production, และการติดตั้งในเครื่อง/Environment ใหม่
 * 🤖 **[AGENTS.md](AGENTS.md)**: คำแนะนำ โครงสร้างโฟลเดอร์ สถาปัตยกรรม และกฎเกณฑ์สำหรับ AI Coding Agents (Cursor, Claude Code, Copilot, Antigravity)
 * 🛠️ **[docs/development.md](docs/development.md)**: คู่มือการพัฒนาอย่างละเอียด, การเชื่อมต่อฐานข้อมูล Supabase / PostgreSQL, และการรัน Playwright Tests

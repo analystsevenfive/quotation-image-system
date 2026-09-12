@@ -84,29 +84,29 @@ Options:
 ## 3. Database Schema
 
 ### Table: `products`
-Columns added in `apps/api/migrations/002_shopify_sync.sql`:
-- `title` (text)
-- `vendor` (text)
-- `status` (text)
-- `product_type` (text)
-- `tags` (text)
-- `part_type` (text)
-- `power_type` (text)
-- `spapart_or_product` (text)
-- `inventory_quantity` (integer)
-- `price` (text)
-- `compare_at_price` (text)
-- `good_bill_name` (text, preserved legacy billing description)
-- `last_sync_at` (timestamptz)
+Streamlined catalog schema:
+- `id` (bigint, primary key)
+- `good_id` (text, unique Shopify custom metafield)
+- `sku` (text, variant SKU)
+- `winspeed` (text, matching code)
+- `model` (text, extracted product model)
+- `title` (text, Shopify product title)
+- `product_url` (text, public web store URL)
+- `image_url` (text, optimized CDN image URL)
+- `image_status` (text)
+- `good_bill_name` (text, billing product name from legacy/Google Sheets)
+- `last_sync_at` (text, Thai local time formatted as `DD/MM/YYYY HH:MI`)
+- `created_at` / `updated_at` (timestamptz)
 
 ### Table: `sync_logs`
-Tracks execution history of syncs:
-- `id` (bigint)
+Tracks execution history of syncs with Thai local time formatting:
+- `id` (bigint, primary key)
 - `sync_source` (text, default 'shopify')
 - `status` ('running' | 'success' | 'failed')
 - `rows_synced` (integer)
-- `started_at` (timestamptz)
-- `completed_at` (timestamptz)
+- `started_at` (text, Thai time `DD/MM/YYYY HH:MI`)
+- `completed_at` (text, Thai time `DD/MM/YYYY HH:MI`)
+- `duration` (text, e.g. '3 นาที 25 วินาที')
 - `error_message` (text)
 
 ---
@@ -117,13 +117,13 @@ Shopify Custom App access tokens expire after **24 hours**.
 The system automatically generates a fresh 24h token before each run using OAuth `client_credentials` grant with `CLIENT_ID` and `CLIENT_SECRET`. You never need to manually copy or rotate `SHOPIFY_ACCESS_TOKEN`.
 
 ### GitHub Secrets Configuration
-To enable the scheduled sync at 19:00:
+To enable the scheduled sync at 21:07 ICT:
 1. Go to your GitHub repository -> **Settings** -> **Secrets and variables** -> **Actions**.
 2. Add the following repository secrets:
    - **`DATABASE_URL`**:
-     `postgresql://postgres.jisvotecloojqivgbktf:KllpKft1D27X6Y3r@aws-0-ap-south-1.pooler.supabase.com:5432/postgres`
+     `postgresql://postgres.<PROJECT_REF>:<PASSWORD>@aws-0-ap-south-1.pooler.supabase.com:5432/postgres`
    - **`SHOPIFY_CLIENT_SECRET`**:
-     *(Get from Shopify App Settings / .env)*
+     *(Get from Shopify App Credentials or .env)*
    - *(Optional)* `SHOPIFY_CLIENT_ID`:
      `696e1e9162c702cc07c2f94a1beacf8a` (already has default in code)
 
