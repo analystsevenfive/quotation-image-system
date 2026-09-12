@@ -263,7 +263,7 @@ export default function Home() {
       {error&&<div role="alert" className="mb-6 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}<button aria-label="ปิดข้อความ" onClick={()=>setError('')}><X size={18}/></button></div>}
       {busy&&<div role="status" className="mb-6 flex items-center gap-3 rounded-xl bg-teal-50 p-4 text-sm text-teal-900"><Loader2 size={18} className="animate-spin"/>{busy}</div>}
       {!quotation ? <section className="enter mx-auto max-w-3xl pt-8 text-center">
-        <p className="mb-4 text-xs font-semibold tracking-[.2em] text-teal-700">QUOTATION, WITH A CLEARER PICTURE</p><h1 className="text-3xl font-semibold leading-snug lg:text-4xl">เติมรูปสินค้าให้ใบเสนอราคา</h1><p className="mt-4 text-base leading-7 text-stone-500">อัปโหลด PDF แล้วตรวจสอบรูปสินค้าที่ระบบค้นหาให้<br/>พร้อมสร้างเอกสารสำหรับส่งต่อในไม่กี่ขั้นตอน</p>
+        <h1 className="text-3xl font-semibold leading-snug lg:text-4xl">เติมรูปสินค้าให้ใบเสนอราคา</h1>
         <div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);void upload(e.dataTransfer.files[0])}} className={`mt-9 rounded-3xl border-2 border-dashed px-6 py-14 transition-colors ${drag?'border-teal-600 bg-teal-50':'border-stone-300 bg-white'}`}>
           <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-teal-50 text-teal-800"><UploadCloud size={30}/></div><h2 className="text-lg font-semibold">ลากใบเสนอราคามาวางที่นี่</h2><p className="mb-6 mt-2 text-sm text-stone-500">หรือเลือกไฟล์จากเครื่องของคุณ</p><Button disabled={!!busy||gesturing} onClick={()=>input.current?.click()}><FileText size={17}/>เลือกไฟล์ PDF</Button><input ref={input} className="hidden" type="file" accept="application/pdf,.pdf" aria-label="เลือกใบเสนอราคา" onChange={e=>void upload(e.target.files?.[0])}/><p className="mt-5 text-xs text-stone-400">PDF ที่เลือกข้อความได้ · สูงสุด 20 MB · แม่แบบ Seven Five</p>
         </div><div className="mt-7 grid gap-4 text-left text-sm text-stone-500 sm:grid-cols-3">{['รักษาความคมชัดต้นฉบับ','ตรวจและเปลี่ยนสินค้าได้','สร้างต่อได้แม้รูปไม่ครบ'].map(t=><div key={t} className="flex items-center gap-2"><Check size={16} className="text-teal-700"/>{t}</div>)}</div>
@@ -400,6 +400,5 @@ export default function Home() {
         onClose={() => setMappingsOpen(false)}
       />
     </main>
-    <footer className="mx-auto max-w-[1440px] px-10 py-8 text-xs text-stone-400">Quotation Studio · SEVEN FIVE Product Image Automation System</footer>
   </div>;
 }
