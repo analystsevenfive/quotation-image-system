@@ -349,6 +349,33 @@ def create_app(service=None):
             'last_sync': last_log,
         }
 
+    @app.post('/api/sync/good-bill-names')
+    async def sync_good_bill_names(request: Request):
+        from app.services.good_bill_name_sync import update_good_bill_names_in_db, fetch_from_google_sheet_csv
+        db_url = os.environ.get('DATABASE_URL')
+        if not db_url:
+            raise HTTPException(500, 'DATABASE_URL is not configured')
+
+        try:
+            body = await request.json()
+        except Exception:
+            raise HTTPException(400, 'Invalid JSON body')
+
+        if isinstance(body, dict) and body.get('fetch_from_sheet'):
+            sheet_id = body.get('sheet_id', '1Z48qT3LXYozhlh_ZBHzn9e4x1kfX_bOLHQtaksj-ZXU')
+            sheet_name = body.get('sheet_name', 'Main Product')
+            records = fetch_from_google_sheet_csv(sheet_id=sheet_id, sheet_name=sheet_name)
+            if records is None:
+                raise HTTPException(400, 'Could not read Google Sheet. Ensure sheet sharing is set to "Anyone with the link can view" or send records directly.')
+            count = update_good_bill_names_in_db(records, database_url=db_url)
+            return {'status': 'success', 'updated': count, 'source': 'google_sheet'}
+
+        if isinstance(body, list):
+            count = update_good_bill_names_in_db(body, database_url=db_url)
+            return {'status': 'success', 'updated': count, 'source': 'direct_payload'}
+
+        raise HTTPException(400, 'Invalid request payload. Expected a list of {good_id, good_bill_name} or {fetch_from_sheet: true}')
+
     return app
 
 

@@ -45,6 +45,18 @@ class TestShopifySync(unittest.TestCase):
         data = resp.json()
         self.assertEqual(data.get("status"), "started")
 
+    @patch("app.services.good_bill_name_sync.update_good_bill_names_in_db")
+    def test_sync_good_bill_names(self, mock_update):
+        mock_update.return_value = 2
+        payload = [
+            {"good_id": "123", "good_bill_name": "Product 123"},
+            {"good_id": "456", "good_bill_name": "Product 456"},
+        ]
+        resp = self.client.post("/api/sync/good-bill-names", json=payload)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json().get("updated"), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
+

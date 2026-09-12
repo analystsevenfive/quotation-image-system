@@ -457,6 +457,15 @@ def sync_shopify_to_supabase(database_url: Optional[str] = None, update_json: bo
     synced_count = 0
     if db_url:
         synced_count = upsert_to_supabase(records, db_url)
+
+        # Attempt to auto-sync good_bill_name from Google Sheets ('Main Product') if accessible
+        try:
+            from app.services.good_bill_name_sync import fetch_from_google_sheet_csv, update_good_bill_names_in_db
+            sheet_records = fetch_from_google_sheet_csv()
+            if sheet_records:
+                update_good_bill_names_in_db(sheet_records, database_url=db_url)
+        except Exception as e:
+            logger.info(f"Google Sheet GoodBillName sync skipped: {e}")
     else:
         logger.warning("DATABASE_URL not set; skipping Supabase upsert.")
 
