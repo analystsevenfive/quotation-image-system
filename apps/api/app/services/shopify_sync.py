@@ -358,6 +358,7 @@ def process_jsonl_stream(download_url: str) -> List[Dict[str, Any]]:
                 "inventory_quantity": v.get("inventoryQuantity"),
                 "price": str(v.get("price")) if v.get("price") is not None else None,
                 "compare_at_price": str(v.get("compareAtPrice")) if v.get("compareAtPrice") is not None else None,
+                "good_bill_name": None,
             })
 
     logger.info(f"Assembled {len(records)} catalog records ready for database upsert.")
@@ -373,12 +374,12 @@ def upsert_to_supabase(records: List[Dict[str, Any]], database_url: str, batch_s
         good_id, sku, winspeed, model, product_url, image_url, image_status,
         title, vendor, status, product_type, tags, part_type, power_type,
         spapart_or_product, inventory_quantity, price, compare_at_price,
-        last_sync_at, updated_at
+        good_bill_name, last_sync_at, updated_at
     ) VALUES (
         %(good_id)s, %(sku)s, %(winspeed)s, %(model)s, %(product_url)s, %(image_url)s, %(image_status)s,
         %(title)s, %(vendor)s, %(status)s, %(product_type)s, %(tags)s, %(part_type)s, %(power_type)s,
         %(spapart_or_product)s, %(inventory_quantity)s, %(price)s, %(compare_at_price)s,
-        now(), now()
+        %(good_bill_name)s, now(), now()
     )
     ON CONFLICT (good_id) DO UPDATE SET
         sku = EXCLUDED.sku,
@@ -398,9 +399,11 @@ def upsert_to_supabase(records: List[Dict[str, Any]], database_url: str, batch_s
         inventory_quantity = EXCLUDED.inventory_quantity,
         price = EXCLUDED.price,
         compare_at_price = EXCLUDED.compare_at_price,
+        good_bill_name = COALESCE(products.good_bill_name, EXCLUDED.good_bill_name),
         last_sync_at = now(),
         updated_at = now();
     """
+
 
     total_synced = 0
     total_records = len(records)
@@ -452,6 +455,8 @@ def update_json_snapshot(records: List[Dict[str, Any]], target_path: str = ".dat
             "sku": r["sku"],
             "winspeed": r["winspeed"],
             "model": r["model"],
+            "title": r.get("title"),
+            "good_bill_name": r.get("good_bill_name"),
             "product_url": r["product_url"],
             "image_url": r["image_url"],
             "image_status": r["image_status"],

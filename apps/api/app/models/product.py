@@ -19,6 +19,9 @@ class Product(BaseModel):
     sku: str
     winspeed: Optional[str] = None
     model: Optional[str] = None
+    title: Optional[str] = None
+    good_bill_name: Optional[str] = None
     product_url: Optional[str] = None
     image_url: Optional[str] = None
     image_status: ImageStatus = ImageStatus.AVAILABLE
+

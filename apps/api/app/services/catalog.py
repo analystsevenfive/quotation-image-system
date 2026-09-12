@@ -48,7 +48,7 @@ class Catalog:
         import psycopg
         from psycopg.rows import dict_row
         with psycopg.connect(url, row_factory=dict_row) as conn:
-            rows = conn.execute('SELECT id, good_id, sku, winspeed, model, product_url, image_url, image_status FROM products ORDER BY id').fetchall()
+            rows = conn.execute('SELECT id, good_id, sku, winspeed, model, title, good_bill_name, product_url, image_url, image_status FROM products ORDER BY id').fetchall()
         products = []
         for row in rows:
             p = Product.model_validate(row)
@@ -79,6 +79,7 @@ def read_excel(path):
             image = normalize_image_url(value('link_image') or value('image_url'))
             products.append(Product(id=len(products)+1, good_id=value('good_id'), sku=sku,
                                     winspeed=value('winspeed'), model=model,
+                                    good_bill_name=description or None,
                                     product_url=value('product_url') or value('url'),
                                     image_url=image, image_status='available' if image else 'missing'))
         return products
