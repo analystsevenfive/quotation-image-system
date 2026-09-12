@@ -66,23 +66,10 @@ INNER_PRODUCTS_QUERY = """
         id
         title
         handle
-        vendor
-        status
-        productType
-        tags
         featuredImage {
           url
         }
         goodId: metafield(namespace: "custom", key: "good_id") {
-          value
-        }
-        partType: metafield(namespace: "custom", key: "part_type") {
-          value
-        }
-        powerType: metafield(namespace: "custom", key: "power_type") {
-          value
-        }
-        spapartOrProduct: metafield(namespace: "custom", key: "spapart_or_product") {
           value
         }
         variants {
@@ -90,9 +77,6 @@ INNER_PRODUCTS_QUERY = """
             node {
               id
               sku
-              price
-              compareAtPrice
-              inventoryQuantity
               image {
                 url
               }
@@ -301,19 +285,10 @@ def process_jsonl_stream(download_url: str) -> List[Dict[str, Any]]:
 
         handle = p.get("handle")
         product_url = f"https://www.sevenfive.co.th/products/{handle}" if handle else None
-
         featured_image = (p.get("featuredImage") or {}).get("url")
-        part_type = (p.get("partType") or {}).get("value")
-        power_type = (p.get("powerType") or {}).get("value")
-        spapart_or_product = (p.get("spapartOrProduct") or {}).get("value")
-        tags = ", ".join(p.get("tags") or [])
-        product_type = p.get("productType")
         title = p.get("title")
-        vendor = p.get("vendor")
-        status = p.get("status")
 
         p_variants = variants.get(pid, [])
-        # If no variants, fallback to product level
         if not p_variants:
             p_variants = [{}]
 
@@ -325,12 +300,10 @@ def process_jsonl_stream(download_url: str) -> List[Dict[str, Any]]:
             # Unique good_id resolution
             variant_good_id = good_id
             if not variant_good_id:
-                # Fallback to variant ID or SKU
                 variant_id = (v.get("id") or "").split("/")[-1]
                 variant_good_id = f"V{variant_id}" if variant_id else (sku or f"P{pid.split('/')[-1]}_{idx}")
 
             if variant_good_id in seen_good_ids:
-                # Duplicate good_id across variants; suffix with variant index
                 variant_good_id = f"{variant_good_id}_{idx+1}"
             seen_good_ids.add(variant_good_id)
 
@@ -344,20 +317,10 @@ def process_jsonl_stream(download_url: str) -> List[Dict[str, Any]]:
                 "sku": sku or variant_good_id,
                 "winspeed": sku or variant_good_id,
                 "model": model,
+                "title": title,
                 "product_url": product_url,
                 "image_url": image_url,
                 "image_status": image_status,
-                "title": title,
-                "vendor": vendor,
-                "status": status,
-                "product_type": product_type,
-                "tags": tags,
-                "part_type": part_type,
-                "power_type": power_type,
-                "spapart_or_product": spapart_or_product,
-                "inventory_quantity": v.get("inventoryQuantity"),
-                "price": str(v.get("price")) if v.get("price") is not None else None,
-                "compare_at_price": str(v.get("compareAtPrice")) if v.get("compareAtPrice") is not None else None,
                 "good_bill_name": None,
             })
 
@@ -371,34 +334,20 @@ def upsert_to_supabase(records: List[Dict[str, Any]], database_url: str, batch_s
 
     sql = """
     INSERT INTO products (
-        good_id, sku, winspeed, model, product_url, image_url, image_status,
-        title, vendor, status, product_type, tags, part_type, power_type,
-        spapart_or_product, inventory_quantity, price, compare_at_price,
+        good_id, sku, winspeed, model, title, product_url, image_url, image_status,
         good_bill_name, last_sync_at, updated_at
     ) VALUES (
-        %(good_id)s, %(sku)s, %(winspeed)s, %(model)s, %(product_url)s, %(image_url)s, %(image_status)s,
-        %(title)s, %(vendor)s, %(status)s, %(product_type)s, %(tags)s, %(part_type)s, %(power_type)s,
-        %(spapart_or_product)s, %(inventory_quantity)s, %(price)s, %(compare_at_price)s,
+        %(good_id)s, %(sku)s, %(winspeed)s, %(model)s, %(title)s, %(product_url)s, %(image_url)s, %(image_status)s,
         %(good_bill_name)s, now(), now()
     )
     ON CONFLICT (good_id) DO UPDATE SET
         sku = EXCLUDED.sku,
         winspeed = EXCLUDED.winspeed,
         model = EXCLUDED.model,
+        title = EXCLUDED.title,
         product_url = EXCLUDED.product_url,
         image_url = EXCLUDED.image_url,
         image_status = EXCLUDED.image_status,
-        title = EXCLUDED.title,
-        vendor = EXCLUDED.vendor,
-        status = EXCLUDED.status,
-        product_type = EXCLUDED.product_type,
-        tags = EXCLUDED.tags,
-        part_type = EXCLUDED.part_type,
-        power_type = EXCLUDED.power_type,
-        spapart_or_product = EXCLUDED.spapart_or_product,
-        inventory_quantity = EXCLUDED.inventory_quantity,
-        price = EXCLUDED.price,
-        compare_at_price = EXCLUDED.compare_at_price,
         good_bill_name = COALESCE(products.good_bill_name, EXCLUDED.good_bill_name),
         last_sync_at = now(),
         updated_at = now();
