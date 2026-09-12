@@ -338,7 +338,7 @@ def upsert_to_supabase(records: List[Dict[str, Any]], database_url: str, batch_s
         good_bill_name, last_sync_at, updated_at
     ) VALUES (
         %(good_id)s, %(sku)s, %(winspeed)s, %(model)s, %(title)s, %(product_url)s, %(image_url)s, %(image_status)s,
-        %(good_bill_name)s, now(), now()
+        %(good_bill_name)s, to_char(timezone('Asia/Bangkok', now()), 'DD/MM/YYYY HH24:MI'), now()
     )
     ON CONFLICT (good_id) DO UPDATE SET
         sku = EXCLUDED.sku,
@@ -349,19 +349,20 @@ def upsert_to_supabase(records: List[Dict[str, Any]], database_url: str, batch_s
         image_url = EXCLUDED.image_url,
         image_status = EXCLUDED.image_status,
         good_bill_name = COALESCE(products.good_bill_name, EXCLUDED.good_bill_name),
-        last_sync_at = now(),
+        last_sync_at = to_char(timezone('Asia/Bangkok', now()), 'DD/MM/YYYY HH24:MI'),
         updated_at = now();
     """
 
-
     total_synced = 0
     total_records = len(records)
+    start_time = time.time()
 
     with psycopg.connect(database_url) as conn:
         with conn.cursor() as cur:
-            # Create sync_logs entry
+            # Create sync_logs entry with Thai timezone
             cur.execute(
-                "INSERT INTO sync_logs (sync_source, status, started_at) VALUES ('shopify', 'running', now()) RETURNING id;"
+                "INSERT INTO sync_logs (sync_source, status, started_at) "
+                "VALUES ('shopify', 'running', to_char(timezone('Asia/Bangkok', now()), 'DD/MM/YYYY HH24:MI')) RETURNING id;"
             )
             log_id = cur.fetchone()[0]
             conn.commit()
@@ -374,16 +375,33 @@ def upsert_to_supabase(records: List[Dict[str, Any]], database_url: str, batch_s
                     total_synced += len(chunk)
                     logger.info(f"  Upserted {total_synced}/{total_records} products to Supabase...")
 
-                # Mark sync_logs as success
+                duration_sec = int(time.time() - start_time)
+                mins, secs = divmod(duration_sec, 60)
+                hours, mins = divmod(mins, 60)
+                if hours > 0:
+                    duration_str = f"{hours} ชั่วโมง {mins} นาที {secs} วินาที"
+                elif mins > 0:
+                    duration_str = f"{mins} นาที {secs} วินาที"
+                else:
+                    duration_str = f"{secs} วินาที"
+
+                # Mark sync_logs as success with Thai timezone and duration
                 cur.execute(
-                    "UPDATE sync_logs SET status = 'success', rows_synced = %s, completed_at = now() WHERE id = %s;",
-                    (total_synced, log_id),
+                    "UPDATE sync_logs SET status = 'success', rows_synced = %s, "
+                    "completed_at = to_char(timezone('Asia/Bangkok', now()), 'DD/MM/YYYY HH24:MI'), "
+                    "duration = %s WHERE id = %s;",
+                    (total_synced, duration_str, log_id),
                 )
                 conn.commit()
             except Exception as exc:
+                duration_sec = int(time.time() - start_time)
+                mins, secs = divmod(duration_sec, 60)
+                duration_str = f"{mins} นาที {secs} วินาที"
                 cur.execute(
-                    "UPDATE sync_logs SET status = 'failed', error_message = %s, completed_at = now() WHERE id = %s;",
-                    (str(exc)[:500], log_id),
+                    "UPDATE sync_logs SET status = 'failed', error_message = %s, "
+                    "completed_at = to_char(timezone('Asia/Bangkok', now()), 'DD/MM/YYYY HH24:MI'), "
+                    "duration = %s WHERE id = %s;",
+                    (str(exc)[:500], duration_str, log_id),
                 )
                 conn.commit()
                 raise
@@ -498,16 +516,21 @@ def get_last_sync_status(database_url: Optional[str] = None) -> Optional[Dict[st
         with psycopg.connect(db_url, row_factory=dict_row) as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT id, sync_source, status, rows_synced, started_at, completed_at, error_message "
-                    "FROM sync_logs ORDER BY started_at DESC LIMIT 1;"
+                    "SELECT id, sync_source, status, rows_synced, started_at, completed_at, error_message, duration "
+                    "FROM sync_logs ORDER BY id DESC LIMIT 1;"
                 )
                 row = cur.fetchone()
                 if row:
                     res = dict(row)
-                    if res.get("started_at"):
+                    if res.get("started_at") and hasattr(res["started_at"], "isoformat"):
                         res["started_at"] = res["started_at"].isoformat()
-                    if res.get("completed_at"):
+                    elif res.get("started_at"):
+                        res["started_at"] = str(res["started_at"])
+
+                    if res.get("completed_at") and hasattr(res["completed_at"], "isoformat"):
                         res["completed_at"] = res["completed_at"].isoformat()
+                    elif res.get("completed_at"):
+                        res["completed_at"] = str(res["completed_at"])
                     return res
     except Exception as e:
         logger.warning(f"Failed to query sync_logs: {e}")
