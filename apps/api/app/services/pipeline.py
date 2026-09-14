@@ -57,6 +57,7 @@ class QuotationPipeline:
             match_res = self.matcher.match(
                 detected_value=item.detected_sku,
                 detected_model=item.detected_model,
+                description=item.description,
             )
             item.match_status = match_res.status
             item.match_method = match_res.method

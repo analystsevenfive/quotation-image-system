@@ -68,4 +68,15 @@ def get_sample_products() -> list:
             model="MOD100",
             image_url="https://cdn.shopify.com/s/files/1/0000/products/MOD100-B.jpg",
         ),
+        Product(
+            id=7,
+            good_id="225006",
+            sku="NTS1-CD-06",
+            winspeed="NTS1-CD-06",
+            model="CD-06",
+            good_bill_name='"NTS" CONDIMENT 6 COMPARTMENT MODEL : CD-06',
+            product_url="https://www.sevenfive.co.th/products/nts1-cd-06",
+            image_url="https://cdn.shopify.com/s/files/1/0000/products/NTS1-CD-06.jpg",
+            image_status=ImageStatus.AVAILABLE,
+        ),
     ]

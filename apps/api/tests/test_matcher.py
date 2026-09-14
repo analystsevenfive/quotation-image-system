@@ -51,7 +51,44 @@ class TestProductMatcher(unittest.TestCase):
         self.assertEqual(result.confidence, 0.90)
         self.assertEqual(result.product.sku, "BER1-BMCFP4")
 
-    def test_priority_4_model_match(self):
+    def test_priority_4_good_bill_name(self):
+        # 1. Exact billing name in description
+        result = self.matcher.match(
+            detected_value=None,
+            description='"NTS" CONDIMENT 6 COMPARTMENT MODEL : CD-06',
+        )
+        self.assertEqual(result.status, MatchStatus.MATCHED)
+        self.assertEqual(result.method, MatchMethod.GOOD_BILL_NAME)
+        self.assertEqual(result.confidence, 0.88)
+        self.assertIsNotNone(result.product)
+        self.assertEqual(result.product.sku, "NTS1-CD-06")
+
+        # 2. Normalized billing name (different whitespace/quotes) in description
+        result_norm = self.matcher.match(
+            detected_value=None,
+            description='NTS CONDIMENT 6 COMPARTMENT MODEL: CD-06',
+        )
+        self.assertEqual(result_norm.status, MatchStatus.MATCHED)
+        self.assertEqual(result_norm.method, MatchMethod.GOOD_BILL_NAME)
+        self.assertEqual(result_norm.product.sku, "NTS1-CD-06")
+
+        # 3. First-line match in multi-line quotation description
+        multiline = '"NTS" CONDIMENT 6 COMPARTMENT MODEL : CD-06\nDIMENSION : 45.5 x 15 x 9 CM.\nSTAINLESS STEEL'
+        result_multi = self.matcher.match(
+            detected_value=None,
+            description=multiline,
+        )
+        self.assertEqual(result_multi.status, MatchStatus.MATCHED)
+        self.assertEqual(result_multi.method, MatchMethod.GOOD_BILL_NAME)
+        self.assertEqual(result_multi.product.sku, "NTS1-CD-06")
+
+        # 4. In detected_value when parser captured the full bill name
+        result_val = self.matcher.match(detected_value='"NTS" CONDIMENT 6 COMPARTMENT MODEL : CD-06')
+        self.assertEqual(result_val.status, MatchStatus.MATCHED)
+        self.assertEqual(result_val.method, MatchMethod.GOOD_BILL_NAME)
+        self.assertEqual(result_val.product.sku, "NTS1-CD-06")
+
+    def test_priority_5_model_match(self):
         # Only model provided
         result = self.matcher.match("BMCFP4")
         self.assertEqual(result.status, MatchStatus.MATCHED)

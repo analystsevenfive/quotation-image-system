@@ -7,7 +7,7 @@ from pathlib import Path
 # Add app to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.services.matching.normalizer import extract_model_from_sku, normalize_sku
+from app.services.matching.normalizer import extract_model_from_sku, normalize_sku, normalize_bill_name
 
 
 class TestSKUNormalizer(unittest.TestCase):
@@ -44,6 +44,18 @@ class TestSKUNormalizer(unittest.TestCase):
         self.assertEqual(extract_model_from_sku("BRAND/CSHL550"), "CSHL550")
         self.assertIsNone(extract_model_from_sku("CSHL550"))
         self.assertIsNone(extract_model_from_sku(""))
+
+    def test_normalize_bill_name(self):
+        self.assertEqual(
+            normalize_bill_name('"NTS" CONDIMENT 6 COMPARTMENT MODEL : CD-06'),
+            'NTS CONDIMENT 6 COMPARTMENT MODEL: CD-06',
+        )
+        self.assertEqual(
+            normalize_bill_name('  "NTS"   CONDIMENT 6 COMPARTMENT   MODEL:CD-06  '),
+            'NTS CONDIMENT 6 COMPARTMENT MODEL: CD-06',
+        )
+        self.assertEqual(normalize_bill_name(None), '')
+        self.assertEqual(normalize_bill_name(''), '')
 
 
 if __name__ == "__main__":

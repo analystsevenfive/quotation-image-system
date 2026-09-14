@@ -18,6 +18,7 @@ class MatchMethod(str, Enum):
     EXACT_SKU = "exact_sku"
     WINSPEED = "winspeed"
     NORMALIZED_SKU = "normalized_sku"
+    GOOD_BILL_NAME = "good_bill_name"
     MODEL = "model"
     MANUAL = "manual"
 

@@ -88,3 +88,17 @@ def normalize_image_url(url: Optional[str], width: int = 200) -> Optional[str]:
     return urlunparse(parsed._replace(query=new_query))
 
 
+def normalize_bill_name(raw_name: Optional[str]) -> str:
+    """Normalizes good_bill_name or quotation line description for exact/prefix matching."""
+    if not raw_name:
+        return ""
+    s = str(raw_name).strip()
+    s = s.replace("\r", " ").replace("\n", " ")
+    s = UNICODE_DASHES_PATTERN.sub("-", s)
+    s = re.sub(r"[\"\'`]", "", s)
+    s = re.sub(r"\s*:\s*", ": ", s)
+    s = WHITESPACE_PATTERN.sub(" ", s).strip()
+    return s.upper()
+
+
+

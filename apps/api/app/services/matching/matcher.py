@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Tuple
 
 from app.models.product import Product
 from app.models.quotation import MatchMethod, MatchStatus
-from app.services.matching.normalizer import extract_model_from_sku, normalize_sku
+from app.services.matching.normalizer import extract_model_from_sku, normalize_sku, normalize_bill_name
 
 
 class MatchResult:
@@ -32,11 +32,13 @@ class ProductMatcher:
     Matches detected quotation strings against the Product Master catalog.
     
     Strict Priority:
+    0. Saved Manual Mapping
     1. Exact SKU
     2. Exact winspeed
     3. Normalized SKU
-    4. Model
-    5. Manual review (needs_review or missing)
+    4. Good Bill Name (Full billing name match)
+    5. Model
+    6. Manual review (needs_review or missing)
     
     Rule: Never auto-accept ambiguous matches.
     """
@@ -48,6 +50,8 @@ class ProductMatcher:
         self._exact_sku_index: Dict[str, List[Product]] = defaultdict(list)
         self._exact_winspeed_index: Dict[str, List[Product]] = defaultdict(list)
         self._normalized_sku_index: Dict[str, List[Product]] = defaultdict(list)
+        self._exact_bill_name_index: Dict[str, List[Product]] = defaultdict(list)
+        self._normalized_bill_name_index: Dict[str, List[Product]] = defaultdict(list)
         self._model_index: Dict[str, List[Product]] = defaultdict(list)
 
         self._build_indices()
@@ -63,6 +67,14 @@ class ProductMatcher:
             if p.winspeed:
                 raw_ws = p.winspeed.strip()
                 self._exact_winspeed_index[raw_ws].append(p)
+
+            if p.good_bill_name:
+                raw_bn = p.good_bill_name.strip()
+                if raw_bn and raw_bn != "0":
+                    self._exact_bill_name_index[raw_bn].append(p)
+                    norm_bn = normalize_bill_name(raw_bn)
+                    if norm_bn:
+                        self._normalized_bill_name_index[norm_bn].append(p)
 
             # Model indexing
             model_val = p.model or extract_model_from_sku(p.sku)
@@ -80,6 +92,7 @@ class ProductMatcher:
         self,
         detected_value: Optional[str],
         detected_model: Optional[str] = None,
+        description: Optional[str] = None,
     ) -> MatchResult:
         """
         Attempts to match the detected string using the priority hierarchy:
@@ -87,10 +100,11 @@ class ProductMatcher:
         1. Exact SKU
         2. Exact winspeed
         3. Normalized SKU
-        4. Model
-        5. Manual review (needs_review or missing)
+        4. Good Bill Name
+        5. Model
+        6. Manual review (needs_review or missing)
         """
-        if not detected_value and not detected_model:
+        if not detected_value and not detected_model and not description:
             return MatchResult(status=MatchStatus.MISSING, confidence=0.0)
 
         raw_val = (detected_value or "").strip()
@@ -159,15 +173,64 @@ class ProductMatcher:
                 candidates=matches,
             )
 
-        # 4. Model Match
+        # 4. Good Bill Name Match (Full billing name match)
+        bill_candidates = []
+        if description:
+            raw_desc = description.strip()
+            norm_desc = normalize_bill_name(raw_desc)
+            if raw_desc in self._exact_bill_name_index:
+                bill_candidates = self._exact_bill_name_index[raw_desc]
+            elif norm_desc in self._normalized_bill_name_index:
+                bill_candidates = self._normalized_bill_name_index[norm_desc]
+            else:
+                first_line = raw_desc.split("\n")[0].strip()
+                norm_first = normalize_bill_name(first_line)
+                if norm_first in self._normalized_bill_name_index:
+                    bill_candidates = self._normalized_bill_name_index[norm_first]
+                elif len(norm_desc) >= 10:
+                    for bname, prods in self._normalized_bill_name_index.items():
+                        if len(bname) >= 10 and (norm_desc.startswith(bname) or bname.startswith(norm_desc)):
+                            bill_candidates.extend(prods)
+                    seen_ids = set()
+                    unique_candidates = []
+                    for cp in bill_candidates:
+                        if cp.id not in seen_ids:
+                            seen_ids.add(cp.id)
+                            unique_candidates.append(cp)
+                    bill_candidates = unique_candidates
+
+        if not bill_candidates and raw_val:
+            if raw_val in self._exact_bill_name_index:
+                bill_candidates = self._exact_bill_name_index[raw_val]
+            else:
+                norm_raw_bill = normalize_bill_name(raw_val)
+                if norm_raw_bill in self._normalized_bill_name_index:
+                    bill_candidates = self._normalized_bill_name_index[norm_raw_bill]
+
+        if bill_candidates:
+            if len(bill_candidates) == 1:
+                return MatchResult(
+                    status=MatchStatus.MATCHED,
+                    method=MatchMethod.GOOD_BILL_NAME,
+                    confidence=0.88,
+                    product=bill_candidates[0],
+                )
+            return MatchResult(
+                status=MatchStatus.NEEDS_REVIEW,
+                method=MatchMethod.GOOD_BILL_NAME,
+                confidence=0.70,
+                candidates=bill_candidates,
+            )
+
+        # 5. Model Match
         candidate_models = []
         if detected_model:
             candidate_models.append(normalize_sku(detected_model))
-        extracted = extract_model_from_sku(norm_val)
-        if extracted:
-            candidate_models.append(normalize_sku(extracted))
         if norm_val and norm_val not in candidate_models:
             candidate_models.append(norm_val)
+        extracted = extract_model_from_sku(norm_val)
+        if extracted and normalize_sku(extracted) not in candidate_models:
+            candidate_models.append(normalize_sku(extracted))
 
         for cand in candidate_models:
             if cand and cand in self._model_index:

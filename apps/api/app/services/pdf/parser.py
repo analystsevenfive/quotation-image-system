@@ -252,7 +252,7 @@ class QuotationPDFParser:
         # 1. Check for explicit MODEL or # designation in description:
         # e.g. "MODEL CSHL550", "MODEL: 1120CBR-110", "# MFC3535-BL", "# SSG-22L"
         explicit_match = re.search(
-            r"(?:MODEL:?|#)\s*([A-Z0-9]+(?:[-_/.][A-Z0-9]+)*)", desc_text, re.IGNORECASE
+            r"(?:MODEL\s*:?|#)\s*([A-Z0-9]+(?:[-_/.][A-Z0-9]+)*)", desc_text, re.IGNORECASE
         )
         if explicit_match:
             candidate = explicit_match.group(1).strip()

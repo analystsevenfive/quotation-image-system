@@ -471,6 +471,9 @@ export default function Home() {
                             {item.match_method === 'manual' && item.status === 'matched' && (
                               <span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-0.5 text-[11px] font-semibold text-[#9a6700] border border-[#eed09c]">จำจากประวัติ</span>
                             )}
+                            {item.match_method === 'good_bill_name' && item.status === 'matched' && (
+                              <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-semibold text-blue-700 border border-blue-200">ตรงชื่อบิล</span>
+                            )}
                             <span className="text-[11px] text-[var(--muted)]">หน้า {item.page}</span>
                           </div>
                           {item.product&&<p className="mt-2 text-xs text-[var(--muted)]">เลือก: <span className="font-semibold text-[var(--text)]">{item.product.sku}</span></p>}

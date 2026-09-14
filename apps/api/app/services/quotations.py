@@ -92,7 +92,11 @@ class QuotationService:
         if not items:
             raise ValueError('No quotation items found. Check that the quotation uses the supported template.')
         for item in items:
-            match = self.catalog.matcher.match(item.detected_sku, item.detected_model)
+            match = self.catalog.matcher.match(
+                item.detected_sku,
+                item.detected_model,
+                description=item.description,
+            )
             item.match_status, item.match_method = match.status, match.method
             item.matched_product, item.candidate_products = match.product, match.candidates
             item.match_confidence = match.confidence
