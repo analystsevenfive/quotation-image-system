@@ -344,10 +344,14 @@ def upsert_to_supabase(records: List[Dict[str, Any]], database_url: str, batch_s
         sku = EXCLUDED.sku,
         winspeed = EXCLUDED.winspeed,
         model = EXCLUDED.model,
-        title = EXCLUDED.title,
-        product_url = EXCLUDED.product_url,
-        image_url = EXCLUDED.image_url,
-        image_status = EXCLUDED.image_status,
+        title = COALESCE(EXCLUDED.title, products.title),
+        product_url = COALESCE(EXCLUDED.product_url, products.product_url),
+        image_url = COALESCE(EXCLUDED.image_url, products.image_url),
+        image_status = CASE
+            WHEN EXCLUDED.image_url IS NOT NULL THEN 'available'
+            WHEN products.image_url IS NOT NULL THEN 'available'
+            ELSE EXCLUDED.image_status
+        END,
         good_bill_name = COALESCE(products.good_bill_name, EXCLUDED.good_bill_name),
         last_sync_at = to_char(timezone('Asia/Bangkok', now()), 'DD/MM/YYYY HH24:MI'),
         updated_at = now();

@@ -320,6 +320,21 @@ def create_app(service=None):
             raise HTTPException(404, 'Mapping not found')
         return {'status': 'deleted', 'key': key}
 
+    @app.post('/api/catalog/reload')
+    def reload_catalog(request: Request):
+        url = os.environ.get('DATABASE_URL')
+        if not url:
+            raise HTTPException(500, 'DATABASE_URL is not configured')
+        from app.services.catalog import Catalog
+        catalog = Catalog.from_postgres(url)
+        svc = request.app.state.service
+        if svc:
+            mapping_store = getattr(svc, 'mapping_store', None)
+            if mapping_store:
+                catalog.set_mapping_store(mapping_store)
+            svc.catalog = catalog
+        return {'status': 'ok', 'products': len(catalog.products)}
+
     @app.post('/api/sync/shopify')
     async def trigger_shopify_sync(request: Request, background_tasks: BackgroundTasks):
         sync_secret = os.environ.get('SYNC_SECRET')
