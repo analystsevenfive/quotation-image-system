@@ -356,6 +356,7 @@ export default function PdfPreview({
       } else {
         lastClickRef.current = {id: g.item.id, time: now};
       }
+      onSelect(g.item.id);
       setDraft(null);
       onGesture(false);
       return;
@@ -868,6 +869,7 @@ export default function PdfPreview({
                       role="button"
                       tabIndex={disabled ? -1 : 0}
                       aria-label={`จัดรูปสินค้า ${item.number}`}
+                      title={`รายการ ${item.number}: ${item.sku || 'รูปสินค้า'} (คลิกเพื่อไปยังรายการในรายการสินค้า)`}
                       aria-pressed={isSelected}
                       className={`select-none ${
                         isSpaceDown ? 'pointer-events-none' : 'pointer-events-auto'
@@ -875,6 +877,10 @@ export default function PdfPreview({
                         isCroppingThis ? 'z-30' : disabled ? 'cursor-wait' : 'cursor-move'
                       } ${isSelected && !isCroppingThis ? `z-10 outline-2 ${safe ? 'outline-[var(--brand)]' : 'outline-[var(--danger)]'}` : ''}`}
                       style={style(rect)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelect(item.id);
+                      }}
                       onPointerDown={(e) => {
                         if (isSpaceDown || isCroppingThis) return;
                         start(e, item, rect, 'move');

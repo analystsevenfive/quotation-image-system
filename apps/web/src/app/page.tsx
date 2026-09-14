@@ -45,17 +45,34 @@ export default function Home() {
   const itemRefs = useRef<Record<number, HTMLElement|null>>({});
   const listRef = useRef<HTMLDivElement>(null);
 
+  const scrollToList = useCallback((id: number) => {
+    requestAnimationFrame(() => {
+      const container = listRef.current;
+      const el = itemRefs.current[id];
+      if (el) {
+        if (container) {
+          const containerRect = container.getBoundingClientRect();
+          const elRect = el.getBoundingClientRect();
+          const targetScrollTop =
+            elRect.top - containerRect.top + container.scrollTop - container.clientHeight / 2 + elRect.height / 2;
+          container.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'smooth' });
+        } else {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        setHighlightId(id);
+        setTimeout(() => {
+          setHighlightId(prev => (prev === id ? null : prev));
+        }, 1800);
+      }
+    });
+  }, []);
+
   const scrollToFirstMissing = useCallback(() => {
     if (!quotation) return;
     const first = quotation.items.find(i => !i.has_image);
     if (!first) return;
-    const el = itemRefs.current[first.id];
-    if (el) {
-      el.scrollIntoView({behavior: 'smooth', block: 'center'});
-      setHighlightId(first.id);
-      setTimeout(() => setHighlightId(null), 1800);
-    }
-  }, [quotation]);
+    scrollToList(first.id);
+  }, [quotation, scrollToList]);
 
   useEffect(() => {
     let active = true;
@@ -89,12 +106,25 @@ export default function Home() {
     if(!quotation||itemId===undefined)return;setBusy('กำลังเปลี่ยนสินค้า…');setError('');
     try{setQuotation(await api<Quotation>(`/quotations/${quotation.id}/items/${itemId}/select-product`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({product_id:product.id})}));setEditing(null)}catch(e){setError((e as Error).message)}finally{setBusy('')}
   }
-  function activate(id:number) {
+  function activate(id:number, shouldScroll = true) {
     const item=quotation?.items.find(i=>i.id===id);
-    if(item){setActiveItem(id);setPage(item.page);setSelectedIds([id]);}
+    if(item){
+      setActiveItem(id);
+      setPage(item.page);
+      setSelectedIds([id]);
+      if(shouldScroll) {
+        scrollToList(id);
+      }
+    }
   }
   function changePage(next:number) {
-    setPage(next);setActiveItem(quotation?.items.find(i=>i.page===next)?.id??null);
+    setPage(next);
+    const firstItem = quotation?.items.find(i=>i.page===next);
+    setActiveItem(firstItem?.id??null);
+    if (firstItem) {
+      setSelectedIds([firstItem.id]);
+      scrollToList(firstItem.id);
+    }
   }
   async function savePlacement(id:number,rect:Rect|null) {
     if(!quotation||mutationGate.current)return;
@@ -167,6 +197,7 @@ export default function Home() {
     if (item) {
       setActiveItem(id);
       setPage(item.page);
+      scrollToList(id);
     }
   }
   function selectAllWithImages() {
@@ -443,7 +474,18 @@ export default function Home() {
                 </div>
                 <div ref={listRef} className="max-h-[58vh] divide-y divide-[var(--border)]/60 overflow-auto">
                   {quotation.items.map(item=>(
-                    <article key={item.id} ref={el => { itemRefs.current[item.id] = el; }} className={`p-5 transition-colors duration-200 ${highlightId === item.id ? 'bg-[var(--warning-soft)] ring-2 ring-[var(--accent)] ring-inset' : item.id===activeItem || selectedIds.includes(item.id)?'bg-[var(--brand-soft)]/50 hover:bg-[var(--brand-soft)]/70':'hover:bg-[var(--surface-soft)]'}`}>
+                    <article
+                      key={item.id}
+                      id={`item-card-${item.id}`}
+                      ref={el => { itemRefs.current[item.id] = el; }}
+                      className={`p-5 transition-all duration-300 ${
+                        highlightId === item.id
+                          ? 'bg-[var(--accent-soft)] ring-2 ring-[var(--accent)] ring-inset shadow-sm'
+                          : item.id === activeItem || selectedIds.includes(item.id)
+                          ? 'bg-[var(--brand-soft)]/50 hover:bg-[var(--brand-soft)]/70'
+                          : 'hover:bg-[var(--surface-soft)]'
+                      }`}
+                    >
                       <div className="flex gap-3">
                         <div className="flex flex-col items-center gap-2 pt-0.5">
                           <input
@@ -473,6 +515,11 @@ export default function Home() {
                             )}
                             {item.match_method === 'good_bill_name' && item.status === 'matched' && (
                               <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-semibold text-blue-700 border border-blue-200">ตรงชื่อบิล</span>
+                            )}
+                            {highlightId === item.id && (
+                              <span className="animate-pulse rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[11px] font-bold text-[#9a6700] border border-[#eed09c]">
+                                เลือกจากรูปภาพ
+                              </span>
                             )}
                             <span className="text-[11px] text-[var(--muted)]">หน้า {item.page}</span>
                           </div>
