@@ -4,19 +4,7 @@ import re
 from pathlib import Path
 from app.models.product import Product
 from app.services.matching.matcher import ProductMatcher
-from app.services.matching.normalizer import extract_model_from_sku
-
-
-def normalize_image_url(url: str | None, width: int = 200) -> str | None:
-    """Ensure Shopify CDN image URLs include width optimization parameter."""
-    if not url or 'cdn.shopify.com' not in url:
-        return url
-    from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
-    parsed = urlparse(url)
-    qs = parse_qs(parsed.query, keep_blank_values=True)
-    qs['width'] = [str(width)]
-    new_query = urlencode(qs, doseq=True)
-    return urlunparse(parsed._replace(query=new_query))
+from app.services.matching.normalizer import extract_model_from_sku, normalize_image_url
 
 
 class Catalog:
@@ -25,6 +13,10 @@ class Catalog:
         self.mapping_store = mapping_store
         self.matcher = ProductMatcher(products, mapping_store=mapping_store)
         self.by_id = {p.id: p for p in products}
+        self._search_keys = [
+            ' '.join(filter(None, [p.sku, p.winspeed, p.model, p.title])).casefold()
+            for p in products
+        ]
 
     def set_mapping_store(self, mapping_store):
         self.mapping_store = mapping_store
@@ -32,7 +24,15 @@ class Catalog:
 
     def search(self, query):
         q = query.strip().casefold()
-        return [p for p in self.products if q in ' '.join(filter(None, [p.sku, p.winspeed, p.model])).casefold()][:30]
+        if not q:
+            return self.products[:30]
+        results = []
+        for p, key in zip(self.products, self._search_keys):
+            if q in key:
+                results.append(p)
+                if len(results) >= 30:
+                    break
+        return results
 
     @classmethod
     def from_json(cls, path):

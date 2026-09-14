@@ -2,6 +2,7 @@
 
 import re
 from typing import Optional
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 # Unicode dashes to normalize to ASCII hyphen-minus '-'
 # Includes en-dash (\u2013), em-dash (\u2014), horizontal bar (\u2015), minus sign (\u2212), figure dash (\u2012)
@@ -78,7 +79,8 @@ def normalize_image_url(url: Optional[str], width: int = 200) -> Optional[str]:
     """Ensure Shopify CDN image URLs include width optimization parameter."""
     if not url or "cdn.shopify.com" not in url:
         return url
-    from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+    if f"width={width}" in url:
+        return url
     parsed = urlparse(url)
     qs = parse_qs(parsed.query, keep_blank_values=True)
     qs["width"] = [str(width)]
