@@ -93,7 +93,7 @@ export default function Home() {
   async function upload(file?:File) {
     if(!file || busy) return;
     setError('');
-    if(!file.name.toLowerCase().endsWith('.pdf') || file.size>20*1024*1024){setError('กรุณาเลือก PDF ขนาดไม่เกิน 20 MB');return;}
+    if(!file.name.toLowerCase().endsWith('.pdf') || file.size>50*1024*1024){setError('กรุณาเลือก PDF ขนาดไม่เกิน 50 MB');return;}
     setBusy('กำลังอัปโหลด อ่านใบเสนอราคา และจับคู่สินค้า…');
     try {const form = new FormData();form.append('file',file);setQuotation(await api<Quotation>('/quotations',{method:'POST',body:form}));setPage(1);setActiveItem(0);setSelectedIds([]);}catch(e){setError((e as Error).message)}finally{setBusy('');if(input.current)input.current.value='';}
   }

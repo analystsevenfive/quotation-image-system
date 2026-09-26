@@ -28,7 +28,8 @@ for env_file in [Path('.env'), Path('../../.env')]:
 class BatchDeleteRequest(BaseModel):
     item_ids: list[int]
 
-MAX_UPLOAD = 20 * 1024 * 1024
+MAX_UPLOAD_MB = int(os.environ.get('MAX_UPLOAD_MB', 50))
+MAX_UPLOAD = MAX_UPLOAD_MB * 1024 * 1024
 
 
 def create_app(service=None):
@@ -78,7 +79,7 @@ def create_app(service=None):
                 return JSONResponse({'detail': 'Invalid Content-Length'}, status_code=400)
             limit = MAX_IMAGE_UPLOAD if image_upload else MAX_UPLOAD
             if length > limit + 65536:
-                return JSONResponse({'detail': 'รูปต้องมีขนาดไม่เกิน 10 MB' if image_upload else 'PDF must be 20 MB or smaller'}, status_code=413)
+                return JSONResponse({'detail': 'รูปต้องมีขนาดไม่เกิน 10 MB' if image_upload else f'PDF must be {MAX_UPLOAD_MB} MB or smaller'}, status_code=413)
 
         if origin and not is_allowed_origin:
             return JSONResponse({'detail': 'Origin not allowed'}, status_code=403)
@@ -128,7 +129,7 @@ def create_app(service=None):
         try:
             data = await file.read(MAX_UPLOAD + 1)
             if len(data) > MAX_UPLOAD:
-                raise HTTPException(413, 'PDF must be 20 MB or smaller')
+                raise HTTPException(413, f'PDF must be {MAX_UPLOAD_MB} MB or smaller')
             if file.content_type not in ('application/pdf', 'application/octet-stream'):
                 raise HTTPException(415, 'Please upload a PDF file')
             svc = request.app.state.service
