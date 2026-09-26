@@ -123,7 +123,7 @@ are held in memory under random IDs, with an HttpOnly SameSite session cookie an
 ownership checks. A different browser session cannot retrieve another quotation.
 Requests from other origins are rejected. Keep one API worker; memory state is
 not shared across processes. Restart clears all quotations; sessions expire in 24
-hours. Maximum 50 live quotations, 20 MB per PDF and 100 pages. The production
+hours. Maximum 50 live quotations, 20 MB per PDF and 500 pages. The production
 storage/authentication phase will replace this temporary store with Supabase.
 
 The web image proxy accepts only HTTPS `cdn.shopify.com` URLs and does not follow

@@ -16,6 +16,9 @@ from app.services.matching.mappings import MappingStore
 from app.services.history import QuotationHistoryStore
 
 
+MAX_PDF_PAGES = 500
+
+
 @dataclass
 class Quotation:
     id: str
@@ -79,8 +82,8 @@ class QuotationService:
             with fitz.open(stream=source, filetype='pdf') as document:
                 if document.needs_pass:
                     raise ValueError('Password-protected PDFs are not supported')
-                if len(document) > 100:
-                    raise ValueError('PDF must contain at most 100 pages')
+                if len(document) > MAX_PDF_PAGES:
+                    raise ValueError(f'PDF must contain at most {MAX_PDF_PAGES} pages')
                 if any(page.rotation for page in document):
                     raise ValueError('กรุณาใช้ PDF แนวตั้งต้นฉบับที่ไม่มีการหมุนหน้า เพื่อให้ตำแหน่งรูปตรงกับเอกสาร')
             page_words = {}

@@ -56,7 +56,7 @@ def create_app(service=None):
     async def private_session(request: Request, call_next):
         origin = request.headers.get('origin')
         allowed_origins_env = os.environ.get('ALLOWED_ORIGINS')
-        default_origins = {'http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:8000', 'http://127.0.0.1:8000'}
+        default_origins = {'http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3001', 'http://127.0.0.1:3001', 'http://localhost:8000', 'http://127.0.0.1:8000'}
         if allowed_origins_env and allowed_origins_env != '*':
             default_origins.update(o.strip() for o in allowed_origins_env.split(',') if o.strip())
         is_allowed_origin = (allowed_origins_env == '*') or (origin in default_origins)

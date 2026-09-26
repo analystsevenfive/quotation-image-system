@@ -1,4 +1,4 @@
-﻿import io
+import io
 import sys
 import unittest
 from pathlib import Path
@@ -68,6 +68,17 @@ class WebTests(unittest.TestCase):
         with patch('app.main.MAX_UPLOAD', 10):
             response = self.client.post('/api/quotations', files={'file': ('large.pdf', b'%PDF-'+b'x'*20, 'application/pdf')})
         self.assertEqual(response.status_code, 413)
+
+    def test_pdf_page_limit_enforced(self):
+        with patch('app.services.quotations.MAX_PDF_PAGES', 2):
+            pdf_bytes = generate_quotation_pdf(num_pages=3)
+            response = self.client.post('/api/quotations', files={'file': ('over_limit.pdf', pdf_bytes, 'application/pdf')})
+            self.assertEqual(response.status_code, 422)
+            self.assertIn('PDF must contain at most 2 pages', response.json()['detail'])
+
+            pdf_ok = generate_quotation_pdf(num_pages=2)
+            response_ok = self.client.post('/api/quotations', files={'file': ('ok.pdf', pdf_ok, 'application/pdf')})
+            self.assertEqual(response_ok.status_code, 201)
 
     def test_cross_site_and_invalid_selection(self):
         self.assertEqual(self.client.get('/api/health', headers={'Origin':'https://evil.example'}).status_code, 403)
