@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 # Real SKUs and product models contain digits or structured prefixes
 SKU_WITH_DIGITS_PATTERN = re.compile(r"\b(?=.*\d)[A-Z0-9]+(?:[-_/.][A-Z0-9]+)+\b", re.IGNORECASE)
 ALPHANUM_CODE_PATTERN = re.compile(r"\b(?=.*\d)[A-Z0-9]{3,}\b", re.IGNORECASE)
+DELIVERY_CONDITIONS_PATTERN = re.compile(r"^เงื.{0,3}อนไขในการจัดส่งสินค้า")
 
 
 class NoSelectableTextError(Exception):
@@ -118,6 +119,10 @@ class QuotationPDFParser:
 
             # 4. Extract words in the DESCRIPTION column for this row
             desc_text = self._extract_description_text(words, y0, y1)
+            # The quotation template numbers its delivery conditions as a table row.
+            # PDF font encodings can replace the Thai tone mark with Latin glyphs.
+            if DELIVERY_CONDITIONS_PATTERN.match(desc_text):
+                continue
 
             # 5. Detect candidate SKU and model
             detected_sku, detected_model = self._detect_sku_candidate(desc_text)

@@ -76,7 +76,7 @@ class TestItemBoundaryDetection(unittest.TestCase):
             self.skipTest("Real QT0926 sample PDF not found")
 
         items = self.parser.parse(sample_path)
-        self.assertEqual(len(items), 19)
+        self.assertEqual(len(items), 18)
 
         # Verify specific detected models matching the actual Seven Five document
         detected_models = {item.item_number: item.detected_sku for item in items}
@@ -98,7 +98,8 @@ class TestItemBoundaryDetection(unittest.TestCase):
         self.assertEqual(detected_models[16], "PT1400-167")
         self.assertEqual(detected_models[17], "PT1600-167")
         self.assertEqual(detected_models[18], "KK-BSP924")
-        self.assertIsNone(detected_models[19])  # Delivery conditions row
+        self.assertNotIn(19, detected_models)  # Delivery conditions are not a product.
+        self.assertFalse(any('จัดส่งสินค้า' in item.description for item in items))
 
 
 if __name__ == "__main__":
