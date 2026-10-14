@@ -21,10 +21,10 @@ _log = logging.getLogger(__name__)
 def _bounds_d(item, pw, ph, template):
     """Compute editing bounds using numeric page dimensions."""
     return BoundingBox(
-        x0=max(0, item.bbox.x0, template.desc_col_x0) + template.image_top_margin,
-        y0=max(0, item.bbox.y0) + template.image_top_margin,
-        x1=min(pw, item.bbox.x1, template.desc_col_x1, template.qty_col_x0) - template.image_right_margin,
-        y1=min(ph, item.bbox.y1) - template.image_bottom_margin,
+        x0=max(0, template.desc_col_x0) + template.image_top_margin,
+        y0=0,
+        x1=min(pw, template.desc_col_x1, template.qty_col_x0) - template.image_right_margin,
+        y1=ph,
     )
 
 
@@ -53,7 +53,7 @@ def _validate_d(box, item, pw, ph, dimensions, template, words):
     epsilon = 0.01
     if (box.x0 < bounds.x0 - epsilon or box.y0 < bounds.y0 - epsilon
             or box.x1 > bounds.x1 + epsilon or box.y1 > bounds.y1 + epsilon):
-        raise ValueError("กรุณาวางรูปภายในกรอบ DESCRIPTION ของรายการนี้")
+        raise ValueError("กรุณาวางรูปภายในคอลัมน์ DESCRIPTION ของหน้านี้")
     if min(box.width, box.height) < 5:
         raise ValueError("รูปเล็กเกินไป กรุณาขยายรูปเล็กน้อย")
     aspect = dimensions[0] / dimensions[1]
@@ -295,6 +295,12 @@ def _build_item_views(service, quotation):
                          if data else None,
             "placement": _norm_d(item.image_bbox, pw, ph),
             "bounds": _norm_d(bounds, pw, ph),
+            "row_bounds": _norm_d(BoundingBox(
+                x0=max(0, item.bbox.x0, template.desc_col_x0) + template.image_top_margin,
+                y0=max(0, item.bbox.y0) + template.image_top_margin,
+                x1=min(pw, item.bbox.x1, template.desc_col_x1, template.qty_col_x0) - template.image_right_margin,
+                y1=min(ph, item.bbox.y1) - template.image_bottom_margin,
+            ), pw, ph),
             "image_aspect": width / height if height else None,
             "manual_placement": item.manual_image_bbox is not None,
         })

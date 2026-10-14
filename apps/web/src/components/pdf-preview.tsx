@@ -94,7 +94,6 @@ export default function PdfPreview({
   const upload = useRef<HTMLInputElement>(null);
   const uploadTarget = useRef<number | null>(null);
   const overlayRefs = useRef<Record<number, HTMLDivElement | null>>({});
-  const lastClickRef = useRef<{id: number; time: number}>({id: -1, time: 0});
 
   const [isSpaceDown, setIsSpaceDown] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
@@ -349,13 +348,6 @@ export default function PdfPreview({
     }
 
     if (movedDist < 5) {
-      const now = Date.now();
-      if (lastClickRef.current.id === g.item.id && now - lastClickRef.current.time < 400) {
-        startCrop(g.item);
-        lastClickRef.current = {id: -1, time: 0};
-      } else {
-        lastClickRef.current = {id: g.item.id, time: now};
-      }
       onSelect(g.item.id);
       setDraft(null);
       onGesture(false);
@@ -848,7 +840,7 @@ export default function PdfPreview({
 
           {rendered && (
             <div className="pointer-events-none absolute inset-0">
-              {active && <div data-testid="item-bounds" className="absolute border border-dashed border-[var(--brand)]/60 bg-[var(--brand-soft)]/20" style={style(active.bounds)} />}
+              {active && <div data-testid="item-bounds" className="pointer-events-none absolute border border-dashed border-[var(--brand)]/60 bg-[var(--brand-soft)]/20" style={style(active.bounds)} />}
 
               {quotation.items
                 .filter((i) => i.page === page && i.image_url)
@@ -902,9 +894,7 @@ export default function PdfPreview({
                       }}
                       onDoubleClick={(e) => {
                         e.stopPropagation();
-                        if (isCroppingThis) {
-                          void applyCrop();
-                        } else {
+                        if (!isCroppingThis && !isSpaceDown) {
                           startCrop(item);
                         }
                       }}

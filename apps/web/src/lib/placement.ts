@@ -3,7 +3,7 @@ import type {Item, PageGeometry, Rect} from './api';
 export function initialPlacement(item:Item, page:PageGeometry):Rect|null {
   if(item.placement)return item.placement;
   if(!item.has_image||!item.image_aspect)return null;
-  const b=item.bounds;
+  const b=item.row_bounds;
   const ratio=item.image_aspect*page.height/page.width;
   const width=Math.min(b.width, b.height*ratio, 100/page.width);
   const height=width/ratio;

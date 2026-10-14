@@ -62,13 +62,17 @@ class ImageEditorTests(unittest.TestCase):
             self.assertTrue(any(image[1] for image in doc[0].get_images()))  # Transparency mask survives.
         self.assertEqual(self.client.get(self.url+'/original').content, self.source)
 
-    def test_rejects_cross_row_price_column_distortion_and_text_collision(self):
+    def test_allows_cross_row_and_rejects_price_column_distortion_and_text_collision(self):
         item = self.q['items'][0]
         rect = item['placement']
-        for invalid in [{**rect,'x':.8}, {**rect,'y':.9}, {**rect,'width':rect['width']/2}, {**rect,'x':.1,'y':item['bounds']['y']}]:
+        moved = {**rect, 'y': .9}
+        response = self.client.put(f'{self.url}/items/0/placement', json=moved)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()['items'][0]['placement']['y'], .9)
+        for invalid in [{**rect,'x':.8}, {**rect,'y':1.1}, {**rect,'width':rect['width']/2}, {**rect,'x':.1,'y':item['bounds']['y']}]:
             response = self.client.put(f'{self.url}/items/0/placement', json=invalid)
             self.assertEqual(response.status_code, 422, response.text)
-        self.assertEqual(self.client.get(self.url).json()['items'][0]['placement'], rect)
+        self.assertEqual(self.client.get(self.url).json()['items'][0]['placement'], moved)
 
     def test_invalid_upload_and_placement_do_not_destroy_generated_output(self):
         self.client.post(self.url+'/generate')

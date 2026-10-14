@@ -6,10 +6,10 @@ from app.models.quotation import BoundingBox
 
 def editing_bounds(item, page, template):
     return BoundingBox(
-        x0=max(0, item.bbox.x0, template.desc_col_x0) + template.image_top_margin,
-        y0=max(0, item.bbox.y0) + template.image_top_margin,
-        x1=min(page.rect.width, item.bbox.x1, template.desc_col_x1, template.qty_col_x0) - template.image_right_margin,
-        y1=min(page.rect.height, item.bbox.y1) - template.image_bottom_margin,
+        x0=max(0, template.desc_col_x0) + template.image_top_margin,
+        y0=0,
+        x1=min(page.rect.width, template.desc_col_x1, template.qty_col_x0) - template.image_right_margin,
+        y1=page.rect.height,
     )
 
 
