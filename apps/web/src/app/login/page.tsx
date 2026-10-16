@@ -12,8 +12,6 @@ function LoginForm() {
     setBusy(true);
     setError('');
     const callback = new URL('/auth/confirm', window.location.origin);
-    const next = params.get('next');
-    if (next?.startsWith('/') && !next.startsWith('//')) callback.searchParams.set('next', next);
     const { error: authError } = await createClient().auth.signInWithOAuth({
       provider: 'google', options: { redirectTo: callback.toString() },
     });
