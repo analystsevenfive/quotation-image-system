@@ -2,6 +2,7 @@
 import logging
 import os
 import secrets
+import httpx
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, UploadFile, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse, Response
@@ -14,6 +15,7 @@ from app.services.editor import replace_image, save_placement, delete_image, del
 from app.services.images.uploads import MAX_IMAGE_UPLOAD
 from app.services.matching.mappings import MappingStore
 from app.services.shopify_sync import is_sync_running, get_last_sync_status, run_sync_background
+from app.core.auth import authorized_user, has_sync_secret
 from pathlib import Path
 
 # Automatically load .env if present in workspace root
@@ -55,6 +57,19 @@ def create_app(service=None):
 
     @app.middleware('http')
     async def private_session(request: Request, call_next):
+        if os.environ.get('AUTH_ENABLED') == 'true' and request.url.path.startswith('/api/') and request.url.path != '/api/health':
+            sync_path = request.url.path in {'/api/sync/shopify', '/api/sync/good-bill-names'}
+            if not (sync_path and has_sync_secret(request)):
+                authorization = request.headers.get('authorization', '')
+                token = authorization.removeprefix('Bearer ').strip() if authorization.startswith('Bearer ') else ''
+                try:
+                    user = await authorized_user(token)
+                except (httpx.HTTPError, ValueError):
+                    logging.getLogger(__name__).exception('Supabase authorization unavailable')
+                    return JSONResponse({'detail': 'Authorization service unavailable'}, status_code=503)
+                if not user:
+                    return JSONResponse({'detail': 'Unauthorized'}, status_code=401)
+                request.state.user = user
         origin = request.headers.get('origin')
         allowed_origins_env = os.environ.get('ALLOWED_ORIGINS')
         default_origins = {'http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3001', 'http://127.0.0.1:3001', 'http://localhost:8000', 'http://127.0.0.1:8000'}

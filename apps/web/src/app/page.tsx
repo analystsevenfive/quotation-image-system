@@ -273,6 +273,11 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <form action="/auth/signout" method="post">
+              <button type="submit" className="rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[var(--brand-soft)]">
+                ออกจากระบบ
+              </button>
+            </form>
             <Button
               variant="outline"
               size="sm"
