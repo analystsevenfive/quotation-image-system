@@ -21,6 +21,7 @@ from app.services.web_quote.models import Cart, CartLine, Customer
 from app.services.web_quote.service import BANGKOK, WebQuoteService, clean_terms, shopify_image_url
 from app.services.web_quote.shopify_sources import CartUnavailable, parse_cart, parse_customer, valid_cart_token
 from app.services.web_quote.store import MemoryQuoteStore
+from app.services.web_quote.renderer import amount
 from app.services.web_quote.totals import baht_words, quote_totals
 
 SECRET = 'proxy-secret'
@@ -121,6 +122,10 @@ class TotalsTests(unittest.TestCase):
         self.assertEqual(totals.discount, Decimal('92.71'))
         self.assertEqual(totals.subtotal + totals.vat, Decimal('500.00'))
         self.assertEqual(totals.total - totals.discount, totals.subtotal)
+
+    def test_unpriced_amounts_stay_blank(self):
+        self.assertEqual(amount(Decimal('0')), '')
+        self.assertEqual(amount(Decimal('1234.5')), '1,234.50')
 
     def test_baht_words(self):
         self.assertEqual(baht_words(Decimal('39065.70')), 'THIRTY NINE THOUSAND SIXTY FIVE BAHT AND SEVENTY SATANG')

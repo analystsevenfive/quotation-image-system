@@ -88,7 +88,8 @@ def rounded(page, rect, radius=6.0):
 
 
 def amount(value: Decimal) -> str:
-    return f'{value:,.2f}'
+    # Unpriced web products stay blank so sales can fill in the price by hand.
+    return f'{value:,.2f}' if value else ''
 
 
 def description_html(line: QuoteLine) -> str:
@@ -208,7 +209,8 @@ def draw_footer(page, quote: Quote, last: bool):
             put(page, (NET_X, y, RIGHT - 2, y + 16), amount(value), 9.5, align='right')
     if last:
         put(page, (480, 642.5, NET_X - 3, 658.5), '7%', 9.5, align='right')
-        put(page, (35, 664.5, 432, 680), baht_words(totals.grand_total), 8.5, align='center')
+        if totals.grand_total:
+            put(page, (35, 664.5, 432, 680), baht_words(totals.grand_total), 8.5, align='center')
     put(page, (443, 664, NET_X - 2, 680), 'GRAND TOTAL', 9, bold=True)
     if last:
         put(page, (NET_X, 664, RIGHT - 2, 680), amount(totals.grand_total), 9.5, align='right')
