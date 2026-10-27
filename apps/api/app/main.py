@@ -16,6 +16,10 @@ from app.services.images.uploads import MAX_IMAGE_UPLOAD
 from app.services.matching.mappings import MappingStore
 from app.services.shopify_sync import is_sync_running, get_last_sync_status, run_sync_background
 from app.core.auth import authorized_user, has_sync_secret
+from app.core.app_proxy import verified_proxy_params
+from app.services.shopify_sync import DEFAULT_SHOP
+from app.services.web_quote.service import QuoteRateLimited, WebQuoteService, clean_terms
+from app.services.web_quote.shopify_sources import CartUnavailable, valid_cart_token
 from pathlib import Path
 
 # Automatically load .env if present in workspace root
@@ -30,11 +34,19 @@ for env_file in [Path('.env'), Path('../../.env')]:
 class BatchDeleteRequest(BaseModel):
     item_ids: list[int]
 
+class CartQuoteRequest(BaseModel):
+    cart_token: str = Field(max_length=300)
+    payment_term: str = Field(default='', max_length=500)
+    remark: str = Field(default='', max_length=2000)
+    validity_days: int = Field(default=30, ge=1, le=365)
+
+PROXY_PREFIX = '/api/proxy/'
+
 MAX_UPLOAD_MB = int(os.environ.get('MAX_UPLOAD_MB', 50))
 MAX_UPLOAD = MAX_UPLOAD_MB * 1024 * 1024
 
 
-def create_app(service=None):
+def create_app(service=None, web_quote_service=None):
     @asynccontextmanager
     async def lifespan(app):
         if service is None:
@@ -46,6 +58,7 @@ def create_app(service=None):
 
     app = FastAPI(title='Quotation Images', lifespan=lifespan)
     app.state.service = service
+    app.state.web_quote_service = web_quote_service
     allowed_hosts = ['localhost', '127.0.0.1', 'testserver']
     allowed_hosts_env = os.environ.get('ALLOWED_HOSTS')
     if allowed_hosts_env:
@@ -57,6 +70,12 @@ def create_app(service=None):
 
     @app.middleware('http')
     async def private_session(request: Request, call_next):
+        if request.url.path.startswith(PROXY_PREFIX):
+            # Storefront requests arrive from Shopify's app proxy; each route verifies its signature.
+            response = await call_next(request)
+            response.headers['Cache-Control'] = 'no-store'
+            response.headers['X-Content-Type-Options'] = 'nosniff'
+            return response
         if os.environ.get('AUTH_ENABLED') == 'true' and request.url.path.startswith('/api/') and request.url.path != '/api/health':
             sync_path = request.url.path in {'/api/sync/shopify', '/api/sync/good-bill-names'}
             if not (sync_path and has_sync_secret(request)):
@@ -406,6 +425,36 @@ def create_app(service=None):
             return {'status': 'success', 'updated': count, 'source': 'direct_payload'}
 
         raise HTTPException(400, 'Invalid request payload. Expected a list of {good_id, good_bill_name} or {fetch_from_sheet: true}')
+
+    @app.post(PROXY_PREFIX + 'cart-quote')
+    async def cart_quote(body: CartQuoteRequest, request: Request):
+        params = verified_proxy_params(
+            request.query_params.multi_items(),
+            os.environ.get('SHOPIFY_CLIENT_SECRET', ''),
+            os.environ.get('SHOPIFY_SHOP', DEFAULT_SHOP),
+        )
+        if params is None:
+            return JSONResponse({'code': 'forbidden'}, status_code=403)
+        customer_id = params.get('logged_in_customer_id', '')
+        if not customer_id.isdigit():
+            return JSONResponse({'code': 'login_required'}, status_code=401)
+        if not valid_cart_token(body.cart_token):
+            return JSONResponse({'code': 'cart_unavailable'}, status_code=422)
+
+        if request.app.state.web_quote_service is None:
+            request.app.state.web_quote_service = WebQuoteService.from_env()
+        terms = clean_terms(body.payment_term, body.remark, body.validity_days)
+        try:
+            quote, pdf = await run_in_threadpool(request.app.state.web_quote_service.create, customer_id, body.cart_token, terms)
+        except QuoteRateLimited:
+            return JSONResponse({'code': 'rate_limited'}, status_code=429)
+        except CartUnavailable:
+            logging.getLogger(__name__).warning('Cart quote unavailable for customer %s', customer_id, exc_info=True)
+            return JSONResponse({'code': 'cart_unavailable'}, status_code=422)
+        return Response(pdf, media_type='application/pdf', headers={
+            'Content-Disposition': f'attachment; filename="{quote.number}.pdf"',
+            'X-Quote-Number': quote.number,
+        })
 
     return app
 
