@@ -41,8 +41,9 @@ def shopify_image_url(url: str | None) -> str | None:
 
 
 class WebQuoteService:
-    def __init__(self, cart_source, customer_source, store, downloader=None, clock=None, quotes_per_hour=QUOTES_PER_HOUR):
+    def __init__(self, cart_source, customer_source, store, downloader=None, clock=None, quotes_per_hour=QUOTES_PER_HOUR, spec_source=None):
         self.cart_source = cart_source
+        self.spec_source = spec_source
         self.customer_source = customer_source
         self.store = store
         self.downloader = downloader or ImageDownloader()
@@ -54,10 +55,15 @@ class WebQuoteService:
     @classmethod
     def from_env(cls):
         from app.services.shopify_sync import DEFAULT_SHOP
-        from app.services.web_quote.shopify_sources import AdminCustomerSource, StorefrontCartSource
+        from app.services.web_quote.shopify_sources import AdminCustomerSource, AdminProductSpecSource, StorefrontCartSource
         url = os.environ.get('DATABASE_URL')
         store = PostgresQuoteStore(url) if url else MemoryQuoteStore()
-        return cls(StorefrontCartSource(os.environ.get('SHOPIFY_SHOP', DEFAULT_SHOP)), AdminCustomerSource(), store)
+        return cls(
+            StorefrontCartSource(os.environ.get('SHOPIFY_SHOP', DEFAULT_SHOP)),
+            AdminCustomerSource(),
+            store,
+            spec_source=AdminProductSpecSource(),
+        )
 
     def check_rate(self, customer_id: str) -> None:
         now = time.monotonic()
@@ -72,10 +78,12 @@ class WebQuoteService:
     def quote_lines(self, cart: Cart) -> list[QuoteLine]:
         urls = {index: shopify_image_url(line.image_url) for index, line in enumerate(cart.lines)}
         images = self.downloader.get_images_batch([url for url in urls.values() if url])
+        specs = self.spec_source.fetch([line.product_id for line in cart.lines]) if self.spec_source else {}
         lines = []
         for index, line in enumerate(cart.lines):
             unit_price = exclude_vat(line.unit_price)
             details = [detail for detail in [line.variant_title, f'SKU: {line.sku}' if line.sku else ''] if detail]
+            details += specs.get(line.product_id, [])
             lines.append(QuoteLine(
                 number=index + 1,
                 title=line.title,
