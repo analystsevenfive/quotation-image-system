@@ -19,7 +19,7 @@ from app.core.app_proxy import proxy_signature, verified_proxy_params
 from app.main import create_app
 from app.services.web_quote.models import Cart, CartLine, Customer
 from app.services.web_quote.service import BANGKOK, WebQuoteService, clean_terms, shopify_image_url
-from app.services.web_quote.shopify_sources import CartUnavailable, parse_cart, parse_customer, valid_cart_token
+from app.services.web_quote.shopify_sources import CartUnavailable, parse_cart, parse_customer, spec_lines, valid_cart_token
 from app.services.web_quote.store import MemoryQuoteStore
 from app.services.web_quote.renderer import amount
 from app.services.web_quote.totals import baht_words, quote_totals
@@ -161,6 +161,26 @@ class ShopifyParsingTests(unittest.TestCase):
                                                            'city': 'Bangkok', 'province': None, 'zip': '10110', 'phone': '02'}})
         self.assertEqual(customer.phone, '02')
         self.assertEqual(customer.address_lines, ['1 Road', 'Bangkok 10110'])
+
+    def test_customer_without_name_is_not_named_by_email(self):
+        customer = parse_customer('7', {'displayName': 'n@example.com', 'email': 'n@example.com'})
+        self.assertEqual((customer.name, customer.email), ('', 'n@example.com'))
+
+    def test_spec_lines_from_metafields(self):
+        def field(value, name=''):
+            return {'value': value, 'definition': {'name': name}}
+        lines = spec_lines({
+            'width_mm': field('575'), 'length_mm': field('605'), 'height_mm': field('820'),
+            'voltage': field('400'), 'hz': field('50'), 'phrase': field('3N'),
+            'made_in': field('Italy', 'Made in'), 'packing_width': field('690', 'Packing Width'),
+        })
+        self.assertEqual(lines, ['Dimensions (W x D x H): 575 x 605 x 820 mm', 'Electrical: 400 V / 50 Hz / 3N', 'Made in: Italy'])
+
+    def test_spec_lines_fall_back_to_description_list(self):
+        html = ('<p>Intro</p><ul><li>Not a spec</li></ul><p>Technical Specifications:</p><ul>'
+                '<li>Product Code: X-1</li><li>Tank Capacity: 24L</li><li>Size: 5 &amp; 6</li></ul><ul><li>Later</li></ul>')
+        self.assertEqual(spec_lines({}, html), ['Tank Capacity: 24L', 'Size: 5 & 6'])
+        self.assertEqual(spec_lines({}, '<p>No specs</p>'), [])
 
     def test_cart_token_format(self):
         self.assertTrue(valid_cart_token(TOKEN))

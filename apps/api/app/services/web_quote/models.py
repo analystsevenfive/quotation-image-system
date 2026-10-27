@@ -13,6 +13,7 @@ class CartLine:
     quantity: int
     unit_price: Decimal  # VAT-inclusive storefront price per unit
     image_url: str | None = None
+    product_id: str = ''
 
 
 @dataclass

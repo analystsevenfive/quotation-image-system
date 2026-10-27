@@ -136,7 +136,7 @@ def draw_letterhead(page, quote: Quote, index: int, count: int):
     left_box = fitz.Rect(23.16, 128.16, 350.04, 251.76)
     rounded(page, left_box)
     put(page, (25.4, 133.5, 76, 150), 'COMPANY', 9, bold=True)
-    put(page, (78, 133.5, 345, 150), customer.company or customer.name, 9.5)
+    put(page, (78, 133.5, 345, 150), customer.company or customer.name or customer.email, 9.5)
     if customer.company and customer.name:
         put(page, (78, 153.5, 345, 170), customer.name, 9.5)
     put(page, (25.4, 174.4, 76, 191), 'ADDRESS', 9, bold=True)
