@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 from app.main import create_app
 from app.services.matching.normalizer import normalize_image_url, extract_model_from_sku
-from app.services.shopify_sync import is_sync_running
+from app.services.shopify_sync import is_sync_running, resolve_sku_conflicts
 
 
 class TestShopifySync(unittest.TestCase):
@@ -30,6 +30,59 @@ class TestShopifySync(unittest.TestCase):
         self.assertEqual(extract_model_from_sku("BER1-BMCFP4"), "BMCFP4")
         self.assertEqual(extract_model_from_sku("CW-76"), "76")
         self.assertIsNone(extract_model_from_sku(""))
+
+    def test_fallback_records_reuse_existing_good_id_only_when_unambiguous(self):
+        records = [
+            {"good_id": "V123", "sku": "SKU-1"},
+            {"good_id": "V456", "sku": "SKU-2"},
+            {"good_id": "V789", "sku": "SKU-2"},
+            {"good_id": "900", "sku": "SKU-3", "title": "Current title"},
+            {"good_id": "VGOOD", "sku": "SKU-4"},
+            {"good_id": "V999", "sku": "SKU-5", "model": "new-model"},
+        ]
+
+        resolution = resolve_sku_conflicts(records, {
+            "100": {"sku": "SKU-1"},
+            "200": {"sku": "SKU-2"},
+            "300": {"sku": "SKU-3", "title": "Different title"},
+            "400": {"sku": "SKU-4"},
+            "500": {"sku": "SKU-5", "model": "old-model"},
+        })
+
+        self.assertEqual(resolution.remapped, 2)
+        self.assertEqual([r["good_id"] for r in resolution.records], ["100", "200"])
+        self.assertEqual({r["good_id"] for r in resolution.skipped}, {"V789", "900", "VGOOD", "V999"})
+        self.assertEqual((resolution.renames, resolution.merges), ([], []))
+
+    def test_stale_fallback_rows_move_to_real_good_ids(self):
+        records = [
+            {"good_id": "196782", "sku": "puj1-460.924 "},
+            {"good_id": "178166", "sku": "PUJ1-947.700"},
+        ]
+
+        resolution = resolve_sku_conflicts(records, {
+            "V50617419530439": {"sku": "PUJ1-460.924"},
+            "V46281574449351": {"sku": "PUJ1-947.700"},
+            "178166": {"sku": "PUJ1-P947.700"},
+        })
+
+        self.assertEqual(resolution.records, records)
+        self.assertEqual(resolution.renames, [("V50617419530439", "196782")])
+        self.assertEqual(resolution.merges, [("V46281574449351", "178166")])
+        self.assertEqual(resolution.skipped, [])
+
+    def test_duplicate_shopify_products_keep_the_existing_owner(self):
+        records = [
+            {"good_id": "196701", "sku": "VRM2-56CR20-280ZB"},
+            {"good_id": "196701_1", "sku": "VRM2-56CR20-280ZB"},
+            {"good_id": "V1", "sku": "NEW-SKU"},
+            {"good_id": "777", "sku": "new-sku"},
+        ]
+
+        resolution = resolve_sku_conflicts(records, {"196701": {"sku": "VRM2-56CR20-280ZB"}})
+
+        self.assertEqual([r["good_id"] for r in resolution.records], ["196701", "777"])
+        self.assertEqual([r["good_id"] for r in resolution.skipped], ["196701_1", "V1"])
 
     def test_get_sync_status(self):
         resp = self.client.get("/api/sync/status")
