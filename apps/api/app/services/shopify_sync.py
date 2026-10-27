@@ -10,9 +10,11 @@ import datetime
 import json
 import logging
 import os
+import re
 import sys
 import threading
 import time
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -328,6 +330,95 @@ def process_jsonl_stream(download_url: str) -> List[Dict[str, Any]]:
     return records
 
 
+FALLBACK_GOOD_ID = re.compile(r"V\d+")
+
+
+def sku_key(sku: Optional[str]) -> str:
+    """Normalize a SKU the same way as the products_sku_normalized_unique index."""
+    return (sku or "").strip().upper()
+
+
+def is_fallback_good_id(good_id: Any) -> bool:
+    """Variants without a GoodID metafield get a V<variant id> fallback in process_jsonl_stream."""
+    return bool(FALLBACK_GOOD_ID.fullmatch(str(good_id or "")))
+
+
+@dataclass
+class SkuResolution:
+    records: List[Dict[str, Any]]
+    renames: List[Tuple[str, str]] = field(default_factory=list)  # (stale fallback good_id, Shopify good_id)
+    merges: List[Tuple[str, str]] = field(default_factory=list)  # (stale fallback good_id to delete, surviving good_id)
+    remapped: int = 0
+    skipped: List[Dict[str, Any]] = field(default_factory=list)
+
+
+def resolve_sku_conflicts(records: List[Dict[str, Any]], existing: Dict[str, Dict[str, Any]]) -> SkuResolution:
+    """Make the batch safe to upsert under the unique normalized-SKU index.
+
+    `existing` maps each database good_id to its row ({"sku", "title", "product_url", "model"}).
+    Shopify is the source of truth, but one SKU can only own one row:
+    - duplicate SKUs within Shopify keep one record (the existing owner, then a real GoodID);
+    - a stale V fallback row is renamed to, or merged into, the record's real GoodID;
+    - a V fallback record reuses the existing real GoodID when the product metadata agrees;
+    - anything else would change which real GoodID owns a SKU and is skipped for review.
+    """
+    owners = {sku_key(row.get("sku")): good_id for good_id, row in existing.items()}
+
+    groups: Dict[str, List[Dict[str, Any]]] = {}
+    for record in records:
+        groups.setdefault(sku_key(record.get("sku")), []).append(record)
+
+    def preference(record: Dict[str, Any]) -> Tuple[bool, bool, bool]:
+        good_id = str(record.get("good_id", ""))
+        return (
+            owners.get(sku_key(record.get("sku"))) != good_id,
+            is_fallback_good_id(good_id),
+            bool(re.search(r"_\d+$", good_id)),
+        )
+
+    resolution = SkuResolution(records=[])
+    kept_ids = set()
+    for group in groups.values():
+        best = min(group, key=preference)
+        kept_ids.add(id(best))
+        resolution.skipped.extend(record for record in group if record is not best)
+
+    batch_good_ids = {record["good_id"] for record in records if id(record) in kept_ids}
+    for record in records:
+        if id(record) not in kept_ids:
+            continue
+        good_id = record["good_id"]
+        owner = owners.get(sku_key(record.get("sku")))
+        if owner is None or owner == good_id:
+            resolution.records.append(record)
+        elif is_fallback_good_id(owner) and owner not in batch_good_ids:
+            (resolution.merges if good_id in existing else resolution.renames).append((owner, good_id))
+            resolution.records.append(record)
+        elif is_fallback_good_id(good_id) and owner not in batch_good_ids and not any(
+            existing[owner].get(name) and record.get(name) and existing[owner][name] != record[name]
+            for name in ("title", "product_url", "model")
+        ):
+            record["good_id"] = owner
+            resolution.remapped += 1
+            resolution.records.append(record)
+        else:
+            resolution.skipped.append(record)
+    return resolution
+
+
+def apply_sku_resolution(cur, resolution: SkuResolution) -> None:
+    """Move stale fallback rows onto their real GoodIDs before the upsert, keeping good_bill_name."""
+    for stale_id, good_id in resolution.merges:
+        cur.execute(
+            "UPDATE products AS target SET good_bill_name = COALESCE(target.good_bill_name, stale.good_bill_name) "
+            "FROM products AS stale WHERE target.good_id = %s AND stale.good_id = %s",
+            (good_id, stale_id),
+        )
+        cur.execute("DELETE FROM products WHERE good_id = %s", (stale_id,))
+    for stale_id, good_id in resolution.renames:
+        cur.execute("UPDATE products SET good_id = %s, updated_at = now() WHERE good_id = %s", (good_id, stale_id))
+
+
 def upsert_to_supabase(records: List[Dict[str, Any]], database_url: str, batch_size: int = 5000) -> int:
     """Upsert catalog records into Supabase PostgreSQL."""
     import psycopg
@@ -363,6 +454,23 @@ def upsert_to_supabase(records: List[Dict[str, Any]], database_url: str, batch_s
 
     with psycopg.connect(database_url) as conn:
         with conn.cursor() as cur:
+            cur.execute("SELECT good_id, sku, title, product_url, model FROM products")
+            existing = {
+                good_id: {"sku": sku, "title": title, "product_url": product_url, "model": model}
+                for good_id, sku, title, product_url, model in cur.fetchall()
+            }
+            resolution = resolve_sku_conflicts(records, existing)
+            apply_sku_resolution(cur, resolution)
+            conn.commit()
+            records = resolution.records
+            total_records = len(records)
+            logger.info(
+                "SKU resolution: %s renamed, %s merged, %s remapped fallback IDs, %s skipped.",
+                len(resolution.renames), len(resolution.merges), resolution.remapped, len(resolution.skipped),
+            )
+            for record in resolution.skipped:
+                logger.warning("Skipped Shopify record %s: SKU %s is already owned by another GoodID.", record["good_id"], record.get("sku"))
+
             # Create sync_logs entry with Thai timezone
             cur.execute(
                 "INSERT INTO sync_logs (sync_source, status, started_at) "
@@ -398,6 +506,8 @@ def upsert_to_supabase(records: List[Dict[str, Any]], database_url: str, batch_s
                 )
                 conn.commit()
             except Exception as exc:
+                # The failed statement aborts the transaction; without a rollback the log stays "running".
+                conn.rollback()
                 duration_sec = int(time.time() - start_time)
                 mins, secs = divmod(duration_sec, 60)
                 duration_str = f"{mins} นาที {secs} วินาที"
