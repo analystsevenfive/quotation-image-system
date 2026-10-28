@@ -76,14 +76,33 @@ class QuotationService:
         self.max_sessions = max_sessions
 
     def create(self, owner, filename, source):
+        quotation = self.build(owner, filename, source)
+        with self.lock:
+            self.quotations = {k: q for k, q in self.quotations.items() if time.time() - q.created < 86400}
+            if len(self.quotations) >= self.max_sessions:
+                raise ValueError('Workspace is full. Restart the local API to clear temporary quotations.')
+            self.quotations[quotation.id] = quotation
+        if self.history_store:
+            self.history_store.save_quotation(quotation)
+        return quotation
+
+    def process_once(self, source, max_pages=None):
+        """Match and insert images in one pass, without a reviewable session or history."""
+        quotation = self.build('storefront', 'quotation.pdf', source, max_pages)
+        with quotation.lock:
+            self.render_output(quotation)
+        return quotation
+
+    def build(self, owner, filename, source, max_pages=None):
+        max_pages = max_pages or MAX_PDF_PAGES
         if not source.startswith(b'%PDF-'):
             raise ValueError('Please upload a valid PDF file')
         try:
             with fitz.open(stream=source, filetype='pdf') as document:
                 if document.needs_pass:
                     raise ValueError('Password-protected PDFs are not supported')
-                if len(document) > MAX_PDF_PAGES:
-                    raise ValueError(f'PDF must contain at most {MAX_PDF_PAGES} pages')
+                if len(document) > max_pages:
+                    raise ValueError(f'PDF must contain at most {max_pages} pages')
                 if any(page.rotation for page in document):
                     raise ValueError('กรุณาใช้ PDF แนวตั้งต้นฉบับที่ไม่มีการหมุนหน้า เพื่อให้ตำแหน่งรูปตรงกับเอกสาร')
             page_words = {}
@@ -113,13 +132,6 @@ class QuotationService:
             _page_words_cache=page_words,
         )
         prepare_images(self, quotation)
-        with self.lock:
-            self.quotations = {k: q for k, q in self.quotations.items() if time.time() - q.created < 86400}
-            if len(self.quotations) >= self.max_sessions:
-                raise ValueError('Workspace is full. Restart the local API to clear temporary quotations.')
-            self.quotations[quotation.id] = quotation
-        if self.history_store:
-            self.history_store.save_quotation(quotation)
         return quotation
 
     def get(self, identifier, owner=None):
@@ -236,6 +248,12 @@ class QuotationService:
 
     def generate(self, quotation):
         with quotation.lock:
+            self.render_output(quotation)
+            if self.history_store:
+                self.history_store.save_quotation(quotation)
+
+    def render_output(self, quotation):
+        with quotation.lock:
             prepare_images(self, quotation)
             images = {}
             for index, item in enumerate(quotation.items):
@@ -246,8 +264,6 @@ class QuotationService:
                 elif item.matched_product:
                     item.error_message = 'Product image unavailable'
             quotation.output = self.renderer.render(quotation.source, quotation.items, images)
-            if self.history_store:
-                self.history_store.save_quotation(quotation)
 
     @staticmethod
     def product_view(product):

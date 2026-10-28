@@ -18,7 +18,7 @@ from app.services.shopify_sync import is_sync_running, get_last_sync_status, run
 from app.core.auth import authorized_user, has_sync_secret
 from app.core.app_proxy import verified_proxy_params
 from app.services.shopify_sync import DEFAULT_SHOP
-from app.services.web_quote.service import QuoteRateLimited, WebQuoteService, clean_terms
+from app.services.web_quote.service import HourlyRateLimiter, QuoteRateLimited, WebQuoteService, clean_terms
 from app.services.web_quote.shopify_sources import CartUnavailable, valid_cart_token
 from pathlib import Path
 
@@ -41,6 +41,10 @@ class CartQuoteRequest(BaseModel):
     validity_days: int = Field(default=30, ge=1, le=365)
 
 PROXY_PREFIX = '/api/proxy/'
+# Storefront uploads run unattended on a small instance, so keep them smaller than staff uploads.
+STOREFRONT_PDF_MAX = 10 * 1024 * 1024
+STOREFRONT_PDF_PAGES = 30
+STOREFRONT_UPLOADS_PER_HOUR = int(os.environ.get('WEB_IMAGE_UPLOADS_PER_HOUR', 20))
 
 MAX_UPLOAD_MB = int(os.environ.get('MAX_UPLOAD_MB', 50))
 MAX_UPLOAD = MAX_UPLOAD_MB * 1024 * 1024
@@ -59,6 +63,7 @@ def create_app(service=None, web_quote_service=None):
     app = FastAPI(title='Quotation Images', lifespan=lifespan)
     app.state.service = service
     app.state.web_quote_service = web_quote_service
+    app.state.image_upload_limiter = HourlyRateLimiter(STOREFRONT_UPLOADS_PER_HOUR)
     allowed_hosts = ['localhost', '127.0.0.1', 'testserver']
     allowed_hosts_env = os.environ.get('ALLOWED_HOSTS')
     if allowed_hosts_env:
@@ -426,18 +431,25 @@ def create_app(service=None, web_quote_service=None):
 
         raise HTTPException(400, 'Invalid request payload. Expected a list of {good_id, good_bill_name} or {fetch_from_sheet: true}')
 
-    @app.post(PROXY_PREFIX + 'cart-quote')
-    async def cart_quote(body: CartQuoteRequest, request: Request):
+    def storefront_customer(request: Request) -> tuple[str, JSONResponse | None]:
+        """Returns the signed-in customer's ID from a verified app proxy request, or an error response."""
         params = verified_proxy_params(
             request.query_params.multi_items(),
             os.environ.get('SHOPIFY_CLIENT_SECRET', ''),
             os.environ.get('SHOPIFY_SHOP', DEFAULT_SHOP),
         )
         if params is None:
-            return JSONResponse({'code': 'forbidden'}, status_code=403)
+            return '', JSONResponse({'code': 'forbidden'}, status_code=403)
         customer_id = params.get('logged_in_customer_id', '')
         if not customer_id.isdigit():
-            return JSONResponse({'code': 'login_required'}, status_code=401)
+            return '', JSONResponse({'code': 'login_required'}, status_code=401)
+        return customer_id, None
+
+    @app.post(PROXY_PREFIX + 'cart-quote')
+    async def cart_quote(body: CartQuoteRequest, request: Request):
+        customer_id, error = storefront_customer(request)
+        if error:
+            return error
         if not valid_cart_token(body.cart_token):
             return JSONResponse({'code': 'cart_unavailable'}, status_code=422)
 
@@ -454,6 +466,31 @@ def create_app(service=None, web_quote_service=None):
         return Response(pdf, media_type='application/pdf', headers={
             'Content-Disposition': f'attachment; filename="{quote.number}.pdf"',
             'X-Quote-Number': quote.number,
+        })
+
+    @app.post(PROXY_PREFIX + 'quote-images')
+    async def quote_images(request: Request):
+        """Inserts product images into a customer's quotation PDF, sent as the raw request body."""
+        customer_id, error = storefront_customer(request)
+        if error:
+            return error
+        try:
+            request.app.state.image_upload_limiter.check(customer_id)
+        except QuoteRateLimited:
+            return JSONResponse({'code': 'rate_limited'}, status_code=429)
+        data = bytearray()
+        async for chunk in request.stream():
+            data += chunk
+            if len(data) > STOREFRONT_PDF_MAX:
+                return JSONResponse({'code': 'too_large'}, status_code=413)
+        try:
+            quotation = await run_in_threadpool(request.app.state.service.process_once, bytes(data), STOREFRONT_PDF_PAGES)
+        except ValueError:
+            logging.getLogger(__name__).info('Storefront quotation rejected for customer %s', customer_id, exc_info=True)
+            return JSONResponse({'code': 'unsupported_pdf'}, status_code=422)
+        return Response(quotation.output, media_type='application/pdf', headers={
+            'Content-Disposition': 'attachment; filename="quotation-with-images.pdf"',
+            'X-Images-Inserted': str(sum(item.image_inserted for item in quotation.items)),
         })
 
     return app

@@ -110,3 +110,39 @@ class WebTests(unittest.TestCase):
 if __name__ == '__main__':
     unittest.main()
 
+
+
+class StorefrontImageUploadTests(unittest.TestCase):
+    def setUp(self):
+        from tests.test_web_quote import SECRET, SHOP, signed_query
+        environment = patch.dict('os.environ', {'SHOPIFY_CLIENT_SECRET': SECRET, 'SHOPIFY_SHOP': SHOP, 'AUTH_ENABLED': 'true'})
+        environment.start()
+        self.addCleanup(environment.stop)
+        products = get_sample_products()
+        for i, product in enumerate(products, 1):
+            product.id = i
+        self.service = QuotationService(Catalog(products), DEFAULT_TEMPLATE, MockImageDownloader())
+        self.client = TestClient(create_app(self.service))
+        self.signed_query = signed_query
+
+    def post(self, body, customer='42'):
+        return self.client.post(f'/api/proxy/quote-images?{self.signed_query(logged_in_customer_id=customer)}', content=body,
+                                headers={'Content-Type': 'application/pdf'})
+
+    def test_customer_gets_pdf_with_images_without_a_session(self):
+        response = self.post(generate_quotation_pdf(num_pages=1))
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.headers['content-type'], 'application/pdf')
+        self.assertEqual(response.headers['x-images-inserted'], '3')
+        self.assertEqual(self.service.quotations, {})
+        with fitz.open(stream=response.content, filetype='pdf') as document:
+            self.assertGreater(len(document[0].get_images()), 0)
+
+    def test_guest_and_bad_files_are_rejected(self):
+        self.assertEqual(self.post(b'%PDF-', customer='').json(), {'code': 'login_required'})
+        response = self.post(b'not a pdf')
+        self.assertEqual((response.status_code, response.json()), (422, {'code': 'unsupported_pdf'}))
+        with patch('app.main.STOREFRONT_PDF_MAX', 10):
+            self.assertEqual(self.post(b'%PDF-' + b'x' * 20).status_code, 413)
+        with patch('app.main.STOREFRONT_PDF_PAGES', 2):
+            self.assertEqual(self.post(generate_quotation_pdf(num_pages=3)).json(), {'code': 'unsupported_pdf'})

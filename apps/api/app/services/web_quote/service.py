@@ -25,6 +25,25 @@ class QuoteRateLimited(Exception):
     """Raised when a customer requests more quotations than the hourly limit."""
 
 
+class HourlyRateLimiter:
+    """In-memory per-customer limit; resets when the API restarts."""
+
+    def __init__(self, per_hour: int):
+        self.per_hour = per_hour
+        self.requests: dict[str, deque] = defaultdict(deque)
+        self.lock = threading.Lock()
+
+    def check(self, key: str) -> None:
+        now = time.monotonic()
+        with self.lock:
+            recent = self.requests[key]
+            while recent and now - recent[0] > 3600:
+                recent.popleft()
+            if len(recent) >= self.per_hour:
+                raise QuoteRateLimited
+            recent.append(now)
+
+
 def clean_terms(payment_term: str, remark: str, validity_days: int) -> QuoteTerms:
     return QuoteTerms(
         payment_term=' '.join(payment_term.split())[:MAX_TERM_LENGTH],
@@ -48,9 +67,7 @@ class WebQuoteService:
         self.store = store
         self.downloader = downloader or ImageDownloader()
         self.clock = clock or (lambda: datetime.now(BANGKOK))
-        self.quotes_per_hour = quotes_per_hour
-        self.requests: dict[str, deque] = defaultdict(deque)
-        self.lock = threading.Lock()
+        self.limiter = HourlyRateLimiter(quotes_per_hour)
 
     @classmethod
     def from_env(cls):
@@ -66,14 +83,7 @@ class WebQuoteService:
         )
 
     def check_rate(self, customer_id: str) -> None:
-        now = time.monotonic()
-        with self.lock:
-            recent = self.requests[customer_id]
-            while recent and now - recent[0] > 3600:
-                recent.popleft()
-            if len(recent) >= self.quotes_per_hour:
-                raise QuoteRateLimited
-            recent.append(now)
+        self.limiter.check(customer_id)
 
     def quote_lines(self, cart: Cart) -> list[QuoteLine]:
         urls = {index: shopify_image_url(line.image_url) for index, line in enumerate(cart.lines)}
