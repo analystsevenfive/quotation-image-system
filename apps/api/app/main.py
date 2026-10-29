@@ -41,9 +41,9 @@ class CartQuoteRequest(BaseModel):
     validity_days: int = Field(default=30, ge=1, le=365)
 
 PROXY_PREFIX = '/api/proxy/'
-# Storefront uploads run unattended on a small instance, so keep them smaller than staff uploads.
-STOREFRONT_PDF_MAX = 10 * 1024 * 1024
-STOREFRONT_PDF_PAGES = 30
+# Storefront uploads run unattended, so they keep their own limits separate from staff uploads.
+STOREFRONT_PDF_MAX = 100 * 1024 * 1024
+STOREFRONT_PDF_PAGES = 300
 STOREFRONT_UPLOADS_PER_HOUR = int(os.environ.get('WEB_IMAGE_UPLOADS_PER_HOUR', 20))
 
 MAX_UPLOAD_MB = int(os.environ.get('MAX_UPLOAD_MB', 50))
