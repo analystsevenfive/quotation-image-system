@@ -2,7 +2,7 @@
 
 from decimal import ROUND_HALF_UP, Decimal
 
-from app.services.web_quote.models import Cart, QuoteTotals
+from app.services.web_quote.models import Cart, CartLine, QuoteTotals
 
 VAT_RATE = Decimal('0.07')
 CENT = Decimal('0.01')
@@ -16,16 +16,26 @@ def exclude_vat(value: Decimal) -> Decimal:
     return money(value / (1 + VAT_RATE))
 
 
+def unit_price(line: CartLine) -> Decimal:
+    """The VAT-exclusive unit price shown on the quotation."""
+    return money(line.list_price) if line.list_price is not None else exclude_vat(line.unit_price)
+
+
 def quote_totals(cart: Cart) -> QuoteTotals:
     """Split the cart total into WinSpeed-style rows.
 
-    GRAND TOTAL always equals the cart total the customer saw. VAT absorbs the
-    satang rounding from removing VAT per unit, so every row still adds up.
+    With Shopify prices only, GRAND TOTAL equals the cart total the customer saw
+    and VAT absorbs the satang rounding from removing VAT per unit. When the
+    price list replaces any price, the cart total no longer applies, so VAT is
+    7% of the subtotal. A cart discount is kept in both cases.
     """
-    total = sum((exclude_vat(line.unit_price) * line.quantity for line in cart.lines), Decimal('0'))
+    total = sum((unit_price(line) * line.quantity for line in cart.lines), Decimal('0'))
     gross = sum((line.unit_price * line.quantity for line in cart.lines), Decimal('0'))
     discount = exclude_vat(gross - cart.total) if gross > cart.total else Decimal('0.00')
     subtotal = money(total - discount)
+    if any(line.list_price is not None for line in cart.lines):
+        vat = money(subtotal * VAT_RATE)
+        return QuoteTotals(total=money(total), discount=discount, subtotal=subtotal, vat=vat, grand_total=subtotal + vat)
     grand_total = money(cart.total)
     return QuoteTotals(
         total=money(total),
