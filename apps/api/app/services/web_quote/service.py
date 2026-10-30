@@ -14,7 +14,7 @@ from app.services.matching.normalizer import normalize_image_url
 from app.services.web_quote.models import Cart, Quote, QuoteLine, QuoteTerms
 from app.services.web_quote.renderer import render_quote
 from app.services.web_quote.store import MemoryQuoteStore, PostgresQuoteStore, quote_number
-from app.services.web_quote.totals import exclude_vat, quote_totals
+from app.services.web_quote.totals import quote_totals, unit_price as line_unit_price
 
 BANGKOK = timezone(timedelta(hours=7))
 QUOTES_PER_HOUR = int(os.environ.get('WEB_QUOTES_PER_HOUR', 20))
@@ -64,9 +64,10 @@ def shopify_image_url(url: str | None) -> str | None:
 
 
 class WebQuoteService:
-    def __init__(self, cart_source, customer_source, store, downloader=None, clock=None, quotes_per_hour=QUOTES_PER_HOUR, spec_source=None):
+    def __init__(self, cart_source, customer_source, store, downloader=None, clock=None, quotes_per_hour=QUOTES_PER_HOUR, spec_source=None, price_source=None):
         self.cart_source = cart_source
         self.spec_source = spec_source
+        self.price_source = price_source
         self.customer_source = customer_source
         self.store = store
         self.downloader = downloader or ImageDownloader()
@@ -76,6 +77,7 @@ class WebQuoteService:
     @classmethod
     def from_env(cls):
         from app.services.shopify_sync import DEFAULT_SHOP
+        from app.services.web_quote.price_list import SupabasePriceSource
         from app.services.web_quote.shopify_sources import AdminCustomerSource, AdminProductSpecSource, StorefrontCartSource
         url = os.environ.get('DATABASE_URL')
         store = PostgresQuoteStore(url) if url else MemoryQuoteStore()
@@ -84,24 +86,33 @@ class WebQuoteService:
             AdminCustomerSource(),
             store,
             spec_source=AdminProductSpecSource(),
+            price_source=SupabasePriceSource.from_env(),
         )
 
     def check_rate(self, customer_id: str) -> None:
         self.limiter.check(customer_id)
 
     def quote_lines(self, cart: Cart, pool: ThreadPoolExecutor | None = None) -> list[QuoteLine]:
+        """Build the quotation rows, and set each cart line's price-list price for the totals."""
         urls = {index: shopify_image_url(line.image_url) for index, line in enumerate(cart.lines)}
         product_ids = [line.product_id for line in cart.lines]
-        # Images and specifications come from different Shopify hosts, so fetch them together.
+        skus = [line.sku for line in cart.lines]
+        # Images, specifications and prices come from different hosts, so fetch them together.
         specs_job = pool.submit(self.spec_source.fetch, product_ids) if pool and self.spec_source else None
+        prices_job = pool.submit(self.price_source.fetch, skus) if pool and self.price_source else None
         images = self.downloader.get_images_batch([url for url in urls.values() if url])
         if specs_job:
             specs = specs_job.result()
         else:
             specs = self.spec_source.fetch(product_ids) if self.spec_source else {}
+        if prices_job:
+            prices = prices_job.result()
+        else:
+            prices = self.price_source.fetch(skus) if self.price_source else {}
         lines = []
         for index, line in enumerate(cart.lines):
-            unit_price = exclude_vat(line.unit_price)
+            line.list_price = prices.get(line.sku)
+            unit_price = line_unit_price(line)
             details = [detail for detail in [line.variant_title, f'SKU: {line.sku}' if line.sku else ''] if detail]
             details += specs.get(line.product_id, [])
             lines.append(QuoteLine(
@@ -126,7 +137,7 @@ class WebQuoteService:
             timings[stage] = round((now - started) * 1000)
             started = now
 
-        with ThreadPoolExecutor(max_workers=3) as pool:
+        with ThreadPoolExecutor(max_workers=4) as pool:
             # The customer profile does not depend on the cart, so read both at once.
             customer_job = pool.submit(self.customer_source.fetch, customer_id)
             try:

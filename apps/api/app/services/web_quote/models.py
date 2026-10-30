@@ -14,6 +14,7 @@ class CartLine:
     unit_price: Decimal  # VAT-inclusive storefront price per unit
     image_url: str | None = None
     product_id: str = ''
+    list_price: Decimal | None = None  # VAT-exclusive price-list price; replaces unit_price when set
 
 
 @dataclass

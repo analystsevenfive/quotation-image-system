@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from app.core.app_proxy import proxy_signature, verified_proxy_params
 from app.main import create_app
 from app.services.web_quote.models import Cart, CartLine, Customer
+from app.services.web_quote.price_list import in_filter, parse_prices
 from app.services.web_quote.service import BANGKOK, WebQuoteService, clean_terms, shopify_image_url
 from app.services.web_quote.shopify_sources import CartUnavailable, parse_cart, parse_customer, spec_lines, valid_cart_token
 from app.services.web_quote.store import MemoryQuoteStore
@@ -122,6 +123,27 @@ class TotalsTests(unittest.TestCase):
         self.assertEqual(totals.discount, Decimal('92.71'))
         self.assertEqual(totals.subtotal + totals.vat, Decimal('500.00'))
         self.assertEqual(totals.total - totals.discount, totals.subtotal)
+
+    def test_price_list_prices_exclude_vat_and_replace_the_cart_total(self):
+        priced = cart(lines=2)
+        priced.lines[0].list_price = Decimal('2100')
+        totals = quote_totals(priced)
+        self.assertEqual(totals.total, Decimal('4480.00'))  # 2 x 2100 + 2 x 140.00 from Shopify
+        self.assertEqual(totals.vat, Decimal('313.60'))
+        self.assertEqual(totals.grand_total, Decimal('4793.60'))
+
+    def test_price_list_fills_unpriced_shopify_lines(self):
+        unpriced = Cart(currency='THB', total=Decimal('0'), lines=[
+            CartLine(title='Cutter Mixer', variant_title='', sku='SIR1-C4VV', quantity=1, unit_price=Decimal('0'), list_price=Decimal('45000')),
+        ])
+        totals = quote_totals(unpriced)
+        self.assertEqual((totals.discount, totals.subtotal, totals.grand_total), (Decimal('0.00'), Decimal('45000.00'), Decimal('48150.00')))
+
+    def test_parse_price_list(self):
+        rows = [{'good_code': 'A', 'price': 2100}, {'good_code': 'B', 'price': 0}, {'good_code': 'C', 'price': None},
+                {'good_code': 'A', 'price': 99}, {'good_code': 'D', 'price': '12.5'}]
+        self.assertEqual(parse_prices(rows), {'A': Decimal('2100'), 'D': Decimal('12.5')})
+        self.assertEqual(in_filter(['SIR1-C4VV', 'A,"B"']), 'in.("SIR1-C4VV","A,\\"B\\"")')
 
     def test_unpriced_amounts_stay_blank(self):
         self.assertEqual(amount(Decimal('0')), '')
@@ -246,6 +268,18 @@ class CartQuoteEndpointTests(unittest.TestCase):
             self.assertTrue(document[0].get_images())
         self.assertEqual(self.store.records[0]['shopify_customer_id'], '42')
         self.assertEqual(self.store.records[0]['grand_total'], '2097.20')
+
+    def test_price_list_price_is_printed(self):
+        prices = MagicMock()
+        prices.fetch.return_value = {'20CWCH-0': Decimal('2100')}
+        self.quotes.price_source = prices
+        response = self.post(signed_query(logged_in_customer_id='42'))
+        self.assertEqual(response.status_code, 200, response.text)
+        with fitz.open(stream=response.content, filetype='pdf') as document:
+            self.assertIn('2,100.00', page_text(document, 0))
+            self.assertIn('4,200.00', page_text(document, 0))
+        self.assertIn('20CWCH-6', prices.fetch.call_args.args[0])
+        self.assertEqual(self.store.records[0]['grand_total'], '6291.60')  # (4200 + 12 x 140) x 1.07
 
     def test_numbers_increase_and_rate_limit_applies(self):
         query = signed_query(logged_in_customer_id='42')
