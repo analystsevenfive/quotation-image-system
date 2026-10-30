@@ -12,6 +12,16 @@ from app.services.web_quote.models import Cart, CartLine, Customer
 
 logger = logging.getLogger(__name__)
 
+_shared_client: ShopifyClient | None = None
+
+
+def shared_client() -> ShopifyClient:
+    # One client per process, so the customer and specification reads reuse one access token.
+    global _shared_client
+    if _shared_client is None:
+        _shared_client = ShopifyClient()
+    return _shared_client
+
 STOREFRONT_API_VERSION = '2025-01'
 MAX_CART_LINES = 100
 CART_TOKEN_PATTERN = re.compile(r'^[A-Za-z0-9_-]{8,128}(\?key=[A-Za-z0-9]{8,128})?$')
@@ -136,7 +146,7 @@ class AdminCustomerSource:
     """Reads the signed-in customer's profile with the Admin API (needs read_customers)."""
 
     def __init__(self, client: ShopifyClient | None = None):
-        self.client = client or ShopifyClient()
+        self.client = client or shared_client()
 
     def fetch(self, customer_id: str) -> Customer:
         try:
@@ -170,7 +180,7 @@ class AdminProductSpecSource:
     """Reads product specifications from `specs` metafields, or the description's spec list."""
 
     def __init__(self, client: ShopifyClient | None = None):
-        self.client = client or ShopifyClient()
+        self.client = client or shared_client()
 
     def fetch(self, product_ids: list[str]) -> dict[str, list[str]]:
         ids = sorted({product_id for product_id in product_ids if product_id})

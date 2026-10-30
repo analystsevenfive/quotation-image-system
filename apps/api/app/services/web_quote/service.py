@@ -1,8 +1,10 @@
 """Turn a signed-in customer's storefront cart into a numbered quotation PDF."""
 
+import logging
 import os
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
@@ -19,6 +21,8 @@ QUOTES_PER_HOUR = int(os.environ.get('WEB_QUOTES_PER_HOUR', 20))
 MAX_TERM_LENGTH = 80
 MAX_REMARK_LENGTH = 300
 IMAGE_WIDTH = 400
+
+logger = logging.getLogger(__name__)
 
 
 class QuoteRateLimited(Exception):
@@ -85,10 +89,16 @@ class WebQuoteService:
     def check_rate(self, customer_id: str) -> None:
         self.limiter.check(customer_id)
 
-    def quote_lines(self, cart: Cart) -> list[QuoteLine]:
+    def quote_lines(self, cart: Cart, pool: ThreadPoolExecutor | None = None) -> list[QuoteLine]:
         urls = {index: shopify_image_url(line.image_url) for index, line in enumerate(cart.lines)}
+        product_ids = [line.product_id for line in cart.lines]
+        # Images and specifications come from different Shopify hosts, so fetch them together.
+        specs_job = pool.submit(self.spec_source.fetch, product_ids) if pool and self.spec_source else None
         images = self.downloader.get_images_batch([url for url in urls.values() if url])
-        specs = self.spec_source.fetch([line.product_id for line in cart.lines]) if self.spec_source else {}
+        if specs_job:
+            specs = specs_job.result()
+        else:
+            specs = self.spec_source.fetch(product_ids) if self.spec_source else {}
         lines = []
         for index, line in enumerate(cart.lines):
             unit_price = exclude_vat(line.unit_price)
@@ -107,19 +117,43 @@ class WebQuoteService:
 
     def create(self, customer_id: str, cart_token: str, terms: QuoteTerms) -> tuple[Quote, bytes]:
         self.check_rate(customer_id)
-        cart = self.cart_source.fetch(cart_token)
-        customer = self.customer_source.fetch(customer_id)
-        issued_at = self.clock()
-        number = quote_number(issued_at, self.store.next_sequence(f'{issued_at:%Y%m}'))
+        started = time.perf_counter()
+        timings = {}
+
+        def mark(stage):
+            nonlocal started
+            now = time.perf_counter()
+            timings[stage] = round((now - started) * 1000)
+            started = now
+
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            # The customer profile does not depend on the cart, so read both at once.
+            customer_job = pool.submit(self.customer_source.fetch, customer_id)
+            try:
+                cart = self.cart_source.fetch(cart_token)
+            except BaseException:
+                customer_job.cancel()
+                raise
+            customer = customer_job.result()
+            mark('cart_customer')
+            issued_at = self.clock()
+            # Number only valid carts, but reserve it while images download.
+            number_job = pool.submit(self.store.next_sequence, f'{issued_at:%Y%m}')
+            lines = self.quote_lines(cart, pool)
+            number = quote_number(issued_at, number_job.result())
+            mark('lines_number')
         quote = Quote(
             number=number,
             issued_at=issued_at,
             customer=customer,
             terms=terms,
-            lines=self.quote_lines(cart),
+            lines=lines,
             totals=quote_totals(cart),
             currency=cart.currency,
         )
         pdf = render_quote(quote)
+        mark('render')
         self.store.save(quote)
+        mark('save')
+        logger.info('Quotation %s with %d lines timings_ms=%s', number, len(lines), timings)
         return quote, pdf

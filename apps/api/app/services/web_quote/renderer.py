@@ -3,9 +3,14 @@
 Geometry is measured from a WinSpeed quotation (Letter, points) so web and
 sales-issued quotations look the same. Text goes through insert_htmlbox because
 it shapes Thai marks correctly; long single-line fields shrink to fit.
+
+Each insert_htmlbox gets slower as its page fills, so the fixed frame (logo,
+labels, boxes and rules) is drawn once into a template page that every
+quotation page stamps as a single object before its own text is added.
 """
 
 import html
+import threading
 from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -124,48 +129,50 @@ def paginate(lines: list[QuoteLine]) -> list[list[tuple[QuoteLine, float]]]:
     return pages
 
 
-def draw_letterhead(page, quote: Quote, index: int, count: int):
-    put(page, (480, 22, 572, 38), f'หน้า {index} / {count}', 9, align='right')
+def draw_letterhead_frame(page):
     page.insert_image(fitz.Rect(26.16, 40.44, 83.88, 104.16), stream=LOGO)
     put(page, (97.4, 26, 560, 60), COMPANY_NAME, 20, bold=True)
     for offset, text in zip((58.5, 72.5, 86.5), COMPANY_LINES):
         put(page, (97.4, offset, 560, offset + 15), text, 9)
     put(page, (420, 94, 572, 128), 'QUOTATION', 20, bold=True, align='center')
 
-    customer = quote.customer
-    left_box = fitz.Rect(23.16, 128.16, 350.04, 251.76)
-    rounded(page, left_box)
+    rounded(page, fitz.Rect(23.16, 128.16, 350.04, 251.76))
     put(page, (25.4, 133.5, 76, 150), 'COMPANY', 9, bold=True)
+    put(page, (25.4, 174.4, 76, 191), 'ADDRESS', 9, bold=True)
+    put(page, (78, 213.4, 115, 230), 'PHONE :', 9, bold=True)
+    put(page, (25.4, 232.8, 80, 249), 'ATTENTION', 9, bold=True)
+
+    rounded(page, fitz.Rect(353.16, 128.16, RIGHT, 176.76))
+    put(page, (360, 133.1, 418, 150), 'NO.', 9, bold=True, align='center')
+    put(page, (360, 153.4, 418, 170), 'DATE', 9, bold=True, align='center')
+
+    rounded(page, fitz.Rect(353.16, 180.0, RIGHT, 251.88))
+    put(page, (356.2, 183.7, 455, 200), 'PRICE VALIDITY (DAY)', 9, bold=True)
+    put(page, (356.2, 205.8, 455, 222), 'VALID UNTIL', 9, bold=True)
+    put(page, (356.2, 227.5, 455, 244), 'TERM OF PAYMENT', 9, bold=True)
+
+
+def draw_letterhead(page, quote: Quote):
+    customer = quote.customer
     put(page, (78, 133.5, 345, 150), customer.company or customer.name or customer.email, 9.5)
     if customer.company and customer.name:
         put(page, (78, 153.5, 345, 170), customer.name, 9.5)
-    put(page, (25.4, 174.4, 76, 191), 'ADDRESS', 9, bold=True)
     address = customer.address_lines
     put(page, (78, 174.4, 345, 191), address[0] if address else '', 9.5)
     put(page, (78, 194, 345, 211), ' '.join(address[1:]), 9.5)
-    put(page, (78, 213.4, 115, 230), 'PHONE :', 9, bold=True)
     put(page, (116, 213.4, 345, 230), customer.phone, 9.5)
-    put(page, (25.4, 232.8, 80, 249), 'ATTENTION', 9, bold=True)
     attention = ' / '.join(filter(None, [customer.name, customer.email, customer.phone]))
     put(page, (82, 232.8, 345, 249), attention, 9.5)
 
     issued = quote.issued_at
-    rounded(page, fitz.Rect(353.16, 128.16, RIGHT, 176.76))
-    put(page, (360, 133.1, 418, 150), 'NO.', 9, bold=True, align='center')
     put(page, (422, 133.1, 572, 150), quote.number, 9.5)
-    put(page, (360, 153.4, 418, 170), 'DATE', 9, bold=True, align='center')
     put(page, (422, 153.4, 572, 170), f'{issued:%d/%m/%Y}', 9.5)
-
-    rounded(page, fitz.Rect(353.16, 180.0, RIGHT, 251.88))
-    put(page, (356.2, 183.7, 455, 200), 'PRICE VALIDITY (DAY)', 9, bold=True)
     put(page, (457.4, 183.7, 572, 200), str(quote.terms.validity_days), 9.5)
-    put(page, (356.2, 205.8, 455, 222), 'VALID UNTIL', 9, bold=True)
     put(page, (457.4, 205.8, 572, 222), f'{issued + timedelta(days=quote.terms.validity_days):%d/%m/%Y}', 9.5)
-    put(page, (356.2, 227.5, 455, 244), 'TERM OF PAYMENT', 9, bold=True)
     put(page, (457.4, 227.5, 572, 244), quote.terms.payment_term, 9.5)
 
 
-def draw_table(page, rows: list[tuple[QuoteLine, float]]):
+def draw_table_frame(page):
     rounded(page, HEADER_ROW)
     for (x0, x1), label in zip(
         [(LEFT, DESC_X), (DESC_X, QTY_X), (QTY_X, PRICE_X), (PRICE_X, NET_X), (NET_X, RIGHT)],
@@ -176,6 +183,8 @@ def draw_table(page, rows: list[tuple[QuoteLine, float]]):
         page.draw_line((x, HEADER_ROW.y1 - 2.5), (x, BODY_BOTTOM), color=BLUE, width=STROKE)
     page.draw_line((LEFT, 279.0), (RIGHT, 279.0), color=BLUE, width=STROKE)
 
+
+def draw_table(page, rows: list[tuple[QuoteLine, float]]):
     y = BODY_TOP
     for line, height in rows:
         top = y + ROW_PADDING
@@ -191,31 +200,21 @@ def draw_table(page, rows: list[tuple[QuoteLine, float]]):
         y += height
 
 
-def draw_footer(page, quote: Quote, last: bool):
+TOTAL_ROWS = (596.0, 611.5, 627.0, 642.5)
+
+
+def draw_footer_frame(page):
     page.draw_rect(FOOTER_BOX, color=(0, 0, 0), fill=(1, 1, 1), width=STROKE)
     put(page, (26.2, 596, 72, 612), 'REMARK', 9, bold=True)
     page.draw_line((26.2, 609.5), (61.5, 609.5), color=(0, 0, 0), width=0.5)
-    put(page, (75, 596, 436, 660), quote.terms.remark, 9, wrap=True)
     rounded(page, WORDS_BOX)
     for x in (PRICE_X, NET_X):
         page.draw_line((x, BODY_BOTTOM), (x, WORDS_BOX.y1 - 0.6), color=BLUE, width=STROKE)
-
-    totals = quote.totals
-    rows = [('TOTAL', totals.total), ('DISCOUNT', totals.discount if totals.discount else None),
-            ('SUB TOTAL', totals.subtotal), ('VAT', totals.vat)]
-    for (label, value), y in zip(rows, (596.0, 611.5, 627.0, 642.5)):
+    for label, y in zip(('TOTAL', 'DISCOUNT', 'SUB TOTAL', 'VAT'), TOTAL_ROWS):
         put(page, (443, y, NET_X - 2, y + 16), label, 9, bold=True)
-        if last and value is not None:
-            put(page, (NET_X, y, RIGHT - 2, y + 16), amount(value), 9.5, align='right')
-    if last:
-        put(page, (480, 642.5, NET_X - 3, 658.5), '7%', 9.5, align='right')
-        if totals.grand_total:
-            put(page, (35, 664.5, 432, 680), baht_words(totals.grand_total), 8.5, align='center')
     put(page, (443, 664, NET_X - 2, 680), 'GRAND TOTAL', 9, bold=True)
-    if last:
-        put(page, (NET_X, 664, RIGHT - 2, 680), amount(totals.grand_total), 9.5, align='right')
 
-    customer_box, sales_box, date_box = SIGNATURE_BOXES
+    customer_box, sales_box, _ = SIGNATURE_BOXES
     for box in SIGNATURE_BOXES:
         rounded(page, box)
         page.draw_line((box.x0 + 21, 735), (box.x1 - 21, 735), color=BLUE, width=STROKE)
@@ -224,22 +223,75 @@ def draw_footer(page, quote: Quote, last: bool):
     for text, y in zip(SALES_CONTACT, (690, 703.5, 717)):
         put(page, (sales_box.x0, y, sales_box.x1, y + 15), text, 9, align='center')
     put(page, (sales_box.x0, 752.5, sales_box.x1, 768), 'SALES REPRESENTATIVE', 8.5, bold=True, align='center')
+
+
+def draw_footer(page, quote: Quote):
+    put(page, (75, 596, 436, 660), quote.terms.remark, 9, wrap=True)
+    date_box = SIGNATURE_BOXES[2]
     buddhist_year = quote.issued_at.year + 543
     put(page, (date_box.x0, 752.5, date_box.x1, 768), f'DATE    {quote.issued_at:%d/%m/}{buddhist_year}', 8.5, bold=True, align='center')
+
+
+def draw_totals(page, quote: Quote):
+    totals = quote.totals
+    values = (totals.total, totals.discount if totals.discount else None, totals.subtotal, totals.vat)
+    for value, y in zip(values, TOTAL_ROWS):
+        if value is not None:
+            put(page, (NET_X, y, RIGHT - 2, y + 16), amount(value), 9.5, align='right')
+    put(page, (480, 642.5, NET_X - 3, 658.5), '7%', 9.5, align='right')
+    if totals.grand_total:
+        put(page, (35, 664.5, 432, 680), baht_words(totals.grand_total), 8.5, align='center')
+    put(page, (NET_X, 664, RIGHT - 2, 680), amount(totals.grand_total), 9.5, align='right')
+
+
+_frame_lock = threading.Lock()
+_frame_pdf: bytes | None = None
+
+
+def frame_pdf() -> bytes:
+    """The fixed page frame, built once per process and kept as bytes so each render opens its own copy."""
+    global _frame_pdf
+    with _frame_lock:
+        if _frame_pdf is None:
+            document = fitz.open()
+            try:
+                page = document.new_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)
+                draw_letterhead_frame(page)
+                draw_table_frame(page)
+                draw_footer_frame(page)
+                _frame_pdf = document.tobytes(garbage=4)
+            finally:
+                document.close()
+        return _frame_pdf
+
+
+def quote_frame(quote: Quote):
+    """The fixed frame plus this quotation's customer and terms text, which repeat on every page."""
+    document = fitz.open()
+    page = document.new_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)
+    with fitz.open('pdf', frame_pdf()) as frame:
+        page.show_pdf_page(page.rect, frame, 0)
+    draw_letterhead(page, quote)
+    draw_footer(page, quote)
+    return document
 
 
 def render_quote(quote: Quote) -> bytes:
     pages = paginate(quote.lines)
     document = fitz.open()
+    frame = quote_frame(quote)
     try:
         for index, rows in enumerate(pages, 1):
             page = document.new_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)
-            draw_letterhead(page, quote, index, len(pages))
+            page.show_pdf_page(page.rect, frame, 0)
+            put(page, (480, 22, 572, 38), f'หน้า {index} / {len(pages)}', 9, align='right')
             draw_table(page, rows)
-            draw_footer(page, quote, last=index == len(pages))
+            if index == len(pages):
+                draw_totals(page, quote)
         document.set_metadata({'title': f'Quotation {quote.number}', 'author': COMPANY_NAME, 'creator': 'Seven Five web quotation'})
         # Every text box embeds its own font copy; garbage=4 merges the duplicates.
         # subset_fonts() is avoided because it drops the shaped Thai tone-mark glyphs.
         return document.tobytes(garbage=4, deflate=True)
     finally:
+        frame.close()
         document.close()
